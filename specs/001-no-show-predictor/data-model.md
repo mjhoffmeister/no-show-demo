@@ -6,9 +6,9 @@
 
 ## Overview
 
-This document defines the data entities, relationships, and validation rules for the no-show predictor system. The model supports synthetic data generation that aligns with production Athena/Epic EHR schema, enabling realistic ML training and seamless future integration with real data sources.
+This document defines the data entities, relationships, and validation rules for the no-show predictor system. The model supports synthetic data generation that aligns with common EHR schema patterns (e.g., Athena, Epic), enabling realistic ML training and seamless future integration with real data sources.
 
-**Source Systems**: Athena Practice Management, Epic EHR (`epic_appointments_serve`, `epic_provider_availability_assemble`)
+**Source Systems**: Practice management and EHR systems (schema based on industry-standard field naming)
 
 ---
 
@@ -32,7 +32,7 @@ This document defines the data entities, relationships, and validation rules for
 
 ### Patient
 
-Represents a patient with demographic and behavioral attributes. Maps to Athena patient records.
+Represents a patient with demographic and behavioral attributes.
 
 | Field | Type | Source Field | Constraints | Description |
 |-------|------|--------------|-------------|-------------|
@@ -60,12 +60,12 @@ Represents a patient with demographic and behavioral attributes. Maps to Athena 
 
 ### Provider
 
-Represents a healthcare provider. Maps to Athena provider records.
+Represents a healthcare provider.
 
 | Field | Type | Source Field | Constraints | Description |
 |-------|------|--------------|-------------|-------------|
 | `providerid` | integer | `providerid` | PK | Unique provider identifier |
-| `pro_providerid` | integer | `pro_providerid` | Optional | Actual Athena provider ID |
+| `pro_providerid` | integer | `pro_providerid` | Optional | Source system provider ID |
 | `providerfirstname` | string | `providerfirstname` | Required | Provider first name |
 | `providerlastname` | string | `providerlastname` | Required | Provider last name |
 | `providertype` | string | `providertype` | Required | Type: Physician, NP, PA, etc. |
@@ -87,7 +87,7 @@ Represents a healthcare provider. Maps to Athena provider records.
 
 ### Department
 
-Represents a clinic/department location. Maps to Athena department records.
+Represents a clinic/department location.
 
 | Field | Type | Source Field | Constraints | Description |
 |-------|------|--------------|-------------|-------------|
@@ -99,17 +99,17 @@ Represents a clinic/department location. Maps to Athena department records.
 | `placeofservicetype` | string | `placeofservicetype` | Optional | Office, Telehealth, etc. |
 | `providergroupid` | integer | `providergroupid` | Optional | Provider group ID |
 | `departmentgroup` | string | `departmentgroup` | Optional | Department group |
-| `contextid` | integer | `contextid` | Optional | Athena context/org ID |
-| `contextname` | string | `contextname` | Optional | Context name (WI, IL) |
+| `contextid` | integer | `contextid` | Optional | Context/org ID |
+| `contextname` | string | `contextname` | Optional | Context name (Region A, Region B) |
 | `market` | string | `market` | Optional | Market region |
-| `ministry` | string | `ministry` | Optional | Ministry association |
+| `division` | string | `division` | Optional | Division/business group |
 | `business_unit` | string | `business_unit` | Optional | Business unit |
 
 ---
 
 ### Appointment
 
-Represents a scheduled medical appointment. Maps to `epic_appointments_serve` and Athena appointment records.
+Represents a scheduled medical appointment. Maps to EHR appointment source tables.
 
 | Field | Type | Source Field | Constraints | Description |
 |-------|------|--------------|-------------|-------------|
@@ -409,9 +409,11 @@ CREATE INDEX idx_patient_enterprise ON patients(enterpriseid);
 
 ## Schema Mapping Reference
 
-### Athena to Epic Field Mapping
+### EHR Field Mapping Notes
 
-| Athena Field | Epic Field | Notes |
+Common field mappings between practice management and EHR systems:
+
+| PM Field | EHR Field | Notes |
 |--------------|------------|-------|
 | `appointmentid` | `parentappointmentid` | Epic uses parent ID for grouping |
 | `patientid` | `patient_id` | Direct mapping |
@@ -421,20 +423,14 @@ CREATE INDEX idx_patient_enterprise ON patients(enterpriseid);
 | `appointmenttypeid` | `appointmenttypename` | Epic uses name, not ID |
 | `primarypatientinsuranceid` | Insurance class name | Epic shows high-level grouping |
 
-### Epic-Only Fields (available via `epic_appointments_serve`)
-
-Fields available in Epic but not in Athena:
-- `epic_ministry` - Ministry association
-- `appointment_appointmentcheckindatetime` - Check-in validation available
-
 ### Context/Market Fields
 
 | Field | Usage |
 |-------|-------|
-| `contextname` | Delineates WI vs IL market |
-| `market` | Market from ledger |
-| `ministry` | Ministry from `epic_ministry` |
-| `business_unit` | Custom department group (10-digit BU-Dept) |
+| `contextname` | Delineates market regions |
+| `market` | Geographic market identifier |
+| `division` | Organizational division |
+| `business_unit` | Custom department grouping |
 
 ---
 
@@ -455,6 +451,6 @@ Fields available in Epic but not in Athena:
 ## Version History
 
 | Version | Date | Changes |
-|---------|------|---------|
+|---------|------|---------|  
 | 1.0 | 2026-01-28 | Initial data model |
-| 2.0 | 2026-01-28 | Aligned with Athena/Epic production schema |
+| 2.0 | 2026-01-28 | Aligned with common EHR schema patterns |

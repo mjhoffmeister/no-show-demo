@@ -174,7 +174,7 @@ components:
 
     AppointmentFeatures:
       type: object
-      description: Feature set for a single appointment prediction (aligned with Athena/Epic schema)
+      description: Feature set for a single appointment prediction (aligned with common EHR schema)
       required:
         - patient_age_bucket
         - patient_gender
@@ -286,7 +286,7 @@ components:
         market:
           type: string
           description: Geographic market (optional)
-          example: "Wisconsin"
+          example: "Region A"
         webschedulableyn:
           type: integer
           enum: [0, 1]

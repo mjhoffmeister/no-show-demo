@@ -278,7 +278,7 @@ var mlClient = new MLOnlineEndpointClient(endpoint, credential);
 
 ### 8. Synthetic Data Generation
 
-**Decision**: Generate synthetic data with realistic distributions matching published no-show rates, aligned with production Athena/Epic schema
+**Decision**: Generate synthetic data with realistic distributions matching published no-show rates, aligned with common EHR schema patterns
 
 **Target Statistics**:
 - Overall no-show rate: 20-25% (typical outpatient)
@@ -293,7 +293,7 @@ var mlClient = new MLOnlineEndpointClient(endpoint, credential);
 2. **No-show patterns**: Correlated with evidence-based risk factors
 3. **Appointment scheduling**: Business hours, realistic lead times
 4. **No PII**: All names, IDs are synthetic/fake
-5. **Schema alignment**: Field names match production Athena/Epic schema
+5. **Schema alignment**: Field names follow common EHR conventions (Athena, Epic compatible)
 6. **Patient journeys**: Generate realistic care sequences (initial visit → follow-up → specialist referral → ongoing care)
 7. **Seasonality**: Model monthly/seasonal variation (higher no-shows in winter holidays, summer vacations)
 8. **Journey dropout**: Some patients show progressive no-show chains leading to care abandonment
@@ -358,7 +358,7 @@ resource "azapi_resource" "model_deployment" {
 | Criteria | Azure SQL Database | Azure PostgreSQL Flexible | Azure Cosmos DB (NoSQL) |
 |----------|-------------------|---------------------------|-------------------------|
 | **Query Model** | Full T-SQL, complex JOINs | Full SQL, complex JOINs | Document queries, limited JOINs |
-| **Schema Fit** | ✅ Exact match to Athena/Epic relational schema | ✅ Excellent relational fit | ⚠️ Requires denormalization |
+| **Schema Fit** | ✅ Strong relational schema fit | ✅ Excellent relational fit | ⚠️ Requires denormalization |
 | **Managed Identity** | ✅ Microsoft Entra (native) | ✅ Microsoft Entra (native) | ✅ RBAC (native) |
 | **.NET Data Access** | ADO.NET, Dapper, EF Core | Npgsql, Dapper, EF Core | Azure.Cosmos SDK |
 | **Demo-Scale Pricing** | **~$5/mo** (Basic 5 DTU) | ~$13/mo (Burstable B1ms) | ~$25/mo (400 RU/s serverless) |
@@ -378,7 +378,7 @@ resource "azapi_resource" "model_deployment" {
 5. "Patient journey sequences" → Self-JOIN or window function (LAG/LEAD)
 
 **Why Azure SQL Wins**:
-- Production Athena/Epic schema is relational with normalized tables
+- Healthcare EHR schema is typically relational with normalized tables
 - All 5 query patterns are natural T-SQL (no workarounds)
 - Lowest cost for demo scale ($5/mo vs $13-25/mo)
 - Constitution alignment: simplest solution that works (KISS)

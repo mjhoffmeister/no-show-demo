@@ -1,0 +1,363 @@
+openapi: 3.1.0
+info:
+  title: No-Show Predictor Agent API
+  description: |
+    Azure AI Foundry Responses API for the No-Show Predictor hosted agent.
+    This is the API that the Blazor frontend uses to communicate with the agent.
+    
+    The agent uses the Foundry Responses API protocol with automatic conversation
+    state management. The frontend does not need to track conversation history.
+  version: 1.0.0
+  
+servers:
+  - url: https://{foundryEndpoint}/api/projects/{projectName}
+    description: Azure AI Foundry Agent Service
+    variables:
+      foundryEndpoint:
+        default: your-foundry.services.ai.azure.com
+      projectName:
+        default: noshow-predictor
+
+security:
+  - bearerAuth: []
+
+paths:
+  /responses:
+    post:
+      operationId: createResponse
+      summary: Send a message and get agent response
+      description: |
+        Submit a user message to the agent and receive a response.
+        The agent will:
+        1. Parse the natural language query
+        2. Retrieve relevant appointment data
+        3. Call the ML model for predictions if needed
+        4. Generate a helpful response with recommendations
+        
+        Supports both synchronous and streaming responses.
+      tags:
+        - Agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResponseRequest'
+            examples:
+              tomorrowNoShows:
+                summary: Ask about tomorrow's high-risk appointments
+                value:
+                  input:
+                    messages:
+                      - role: user
+                        content: "Which patients are most likely to miss their appointments tomorrow?"
+              schedulingActions:
+                summary: Ask for scheduling recommendations
+                value:
+                  input:
+                    messages:
+                      - role: user
+                        content: "What scheduling actions should I take for tomorrow?"
+              patientHistory:
+                summary: Ask about specific patient
+                value:
+                  input:
+                    messages:
+                      - role: user
+                        content: "What's the no-show history for patient Maria Garcia?"
+              weeklyForecast:
+                summary: Ask for weekly forecast
+                value:
+                  input:
+                    messages:
+                      - role: user
+                        content: "What does the no-show forecast look like for this week?"
+              withConversation:
+                summary: Continue existing conversation
+                value:
+                  conversation_id: "conv_abc123"
+                  input:
+                    messages:
+                      - role: user
+                        content: "Can you tell me more about the Johnson appointment?"
+      responses:
+        '200':
+          description: Agent response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              examples:
+                predictionResponse:
+                  summary: Response with predictions
+                  value:
+                    id: "resp_xyz789"
+                    conversation_id: "conv_abc123"
+                    status: "completed"
+                    output:
+                      - type: message
+                        role: assistant
+                        content: |
+                          Based on the ML predictions, here are tomorrow's highest-risk appointments:
+                          
+                          1. **Maria Garcia** (9:00 AM with Dr. Smith)
+                             - Risk Level: High (78%)
+                             - Key Factors: 3 previous no-shows, 25-mile distance
+                             - Recommendation: Priority confirmation call
+                          
+                          2. **John Johnson** (2:30 PM with Dr. Lee)
+                             - Risk Level: Medium (45%)
+                             - Key Factors: New patient, scheduled 3 weeks ago
+                             - Recommendation: Text reminder + offer rescheduling
+                          
+                          Would you like me to provide more details on any of these patients?
+                    usage:
+                      prompt_tokens: 150
+                      completion_tokens: 200
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-Sent Events stream for streaming responses
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '429':
+          description: Rate limited
+        '500':
+          description: Agent error
+
+  /responses/{responseId}:
+    get:
+      operationId: getResponse
+      summary: Get a previous response by ID
+      tags:
+        - Agent
+      parameters:
+        - name: responseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Response details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+        '404':
+          description: Response not found
+
+  /conversations/{conversationId}:
+    get:
+      operationId: getConversation
+      summary: Get conversation history
+      description: Retrieve full conversation history (managed by Foundry)
+      tags:
+        - Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversation with message history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '404':
+          description: Conversation not found
+
+    delete:
+      operationId: deleteConversation
+      summary: Delete a conversation
+      tags:
+        - Conversations
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Conversation deleted
+        '404':
+          description: Conversation not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Azure AD token with Foundry scope
+
+  schemas:
+    CreateResponseRequest:
+      type: object
+      required:
+        - input
+      properties:
+        conversation_id:
+          type: string
+          description: |
+            Optional conversation ID to continue an existing conversation.
+            If omitted, a new conversation is created.
+          example: "conv_abc123"
+        input:
+          type: object
+          required:
+            - messages
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/InputMessage'
+              minItems: 1
+        stream:
+          type: boolean
+          default: false
+          description: Enable streaming responses via SSE
+        agent:
+          type: object
+          description: Agent reference (for hosted agents)
+          properties:
+            name:
+              type: string
+              example: "noshow-predictor-agent"
+            version:
+              type: string
+              example: "1"
+
+    InputMessage:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: ["user"]
+          description: Message role (user messages only in input)
+        content:
+          type: string
+          description: User's natural language query
+          example: "Which patients are at risk of missing their appointments tomorrow?"
+
+    Response:
+      type: object
+      required:
+        - id
+        - status
+        - output
+      properties:
+        id:
+          type: string
+          description: Unique response ID
+          example: "resp_xyz789"
+        conversation_id:
+          type: string
+          description: Conversation this response belongs to
+          example: "conv_abc123"
+        status:
+          type: string
+          enum: ["in_progress", "completed", "failed"]
+        output:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutputItem'
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    OutputItem:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: ["message", "tool_call", "tool_output"]
+        role:
+          type: string
+          enum: ["assistant"]
+        content:
+          type: string
+          description: Assistant message content (markdown supported)
+        tool_call_id:
+          type: string
+          description: For tool calls/outputs
+        function_name:
+          type: string
+          description: Name of function called
+        function_arguments:
+          type: object
+          description: Arguments passed to function
+
+    Conversation:
+      type: object
+      required:
+        - id
+        - messages
+      properties:
+        id:
+          type: string
+          example: "conv_abc123"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationMessage'
+
+    ConversationMessage:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: ["user", "assistant", "system"]
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # Streaming event schemas (for SSE)
+    ResponseStreamEvent:
+      type: object
+      discriminator:
+        propertyName: type
+      properties:
+        type:
+          type: string
+          enum:
+            - response.created
+            - response.output_item.added
+            - response.content_part.added
+            - response.text.delta
+            - response.text.done
+            - response.content_part.done
+            - response.output_item.done
+            - response.completed
+        sequence:
+          type: integer
+          description: Event sequence number

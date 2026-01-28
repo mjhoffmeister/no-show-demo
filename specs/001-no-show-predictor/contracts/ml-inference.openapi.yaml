@@ -1,0 +1,389 @@
+openapi: 3.1.0
+info:
+  title: No-Show Predictor ML Inference API
+  description: |
+    Azure ML Managed Online Endpoint API for medical appointment no-show prediction.
+    This API is called by the agent to get prediction probabilities.
+  version: 1.0.0
+  contact:
+    name: No-Show Predictor Demo
+    
+servers:
+  - url: https://{endpoint}.{region}.inference.ml.azure.com
+    description: Azure ML Managed Online Endpoint
+    variables:
+      endpoint:
+        default: noshow-predictor
+        description: Endpoint name
+      region:
+        default: northcentralus
+        description: Azure region
+
+security:
+  - bearerAuth: []
+  - managedIdentity: []
+
+paths:
+  /score:
+    post:
+      operationId: scorePrediction
+      summary: Get no-show probability for appointments
+      description: |
+        Submit one or more appointment feature sets to get no-show probability predictions.
+        Supports batch predictions for efficiency.
+      tags:
+        - Prediction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PredictionRequest'
+            examples:
+              singleAppointment:
+                summary: Single appointment prediction
+                value:
+                  data:
+                    - patient_age_bucket: "40-64"
+                      patient_gender: "F"
+                      sipg2: "Commercial"
+                      patient_zip_code: "53202"
+                      portal_engaged: true
+                      historical_no_show_rate: 0.1
+                      historical_no_show_count: 1
+                      lead_time_days: 7
+                      appointmenttypename: "FOLLOW UP"
+                      virtual_flag: "Non-Virtual"
+                      new_patient_flag: "EST PATIENT"
+                      day_of_week: 2
+                      hour_of_day: 10
+                      appointmentduration: 30
+                      provider_specialty: "Internal Medicine"
+                      providertype: "Physician"
+                      departmentspecialty: "Internal Medicine"
+                      placeofservicetype: "Office"
+                      webschedulableyn: 0
+              batchAppointments:
+                summary: Batch prediction (multiple appointments)
+                value:
+                  data:
+                    - patient_age_bucket: "40-64"
+                      patient_gender: "F"
+                      sipg2: "Commercial"
+                      patient_zip_code: "53202"
+                      portal_engaged: true
+                      historical_no_show_rate: 0.1
+                      historical_no_show_count: 1
+                      lead_time_days: 7
+                      appointmenttypename: "FOLLOW UP"
+                      virtual_flag: "Non-Virtual"
+                      new_patient_flag: "EST PATIENT"
+                      day_of_week: 2
+                      hour_of_day: 10
+                      appointmentduration: 30
+                      provider_specialty: "Internal Medicine"
+                      providertype: "Physician"
+                      departmentspecialty: "Internal Medicine"
+                      placeofservicetype: "Office"
+                      webschedulableyn: 0
+                    - patient_age_bucket: "18-39"
+                      patient_gender: "M"
+                      sipg2: "Medicaid"
+                      patient_zip_code: "60601"
+                      portal_engaged: false
+                      historical_no_show_rate: 0.4
+                      historical_no_show_count: 4
+                      lead_time_days: 21
+                      appointmenttypename: "NEW PATIENT"
+                      virtual_flag: "Non-Virtual"
+                      new_patient_flag: "NEW PATIENT"
+                      day_of_week: 0
+                      hour_of_day: 14
+                      appointmentduration: 45
+                      provider_specialty: "Family Medicine"
+                      providertype: "NP"
+                      departmentspecialty: "Family Medicine"
+                      placeofservicetype: "Office"
+                      webschedulableyn: 1
+      responses:
+        '200':
+          description: Successful prediction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionResponse'
+              examples:
+                singleResult:
+                  summary: Single prediction result
+                  value:
+                    predictions:
+                      - no_show_probability: 0.23
+                        risk_level: "Low"
+                        feature_importances:
+                          - feature: "historical_no_show_rate"
+                            importance: 0.35
+                            direction: "Increases"
+                          - feature: "lead_time_days"
+                            importance: 0.22
+                            direction: "Increases"
+                          - feature: "sipg2"
+                            importance: 0.15
+                            direction: "Increases"
+                          - feature: "portal_engaged"
+                            importance: 0.12
+                            direction: "Decreases"
+                    model_version: "noshow-v1.2.0"
+        '400':
+          description: Invalid request (missing/invalid features)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized (invalid/missing token)
+        '429':
+          description: Rate limit exceeded
+        '500':
+          description: Internal server error
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Azure AD token with audience scope for ML endpoint
+    managedIdentity:
+      type: http
+      scheme: bearer
+      description: Token obtained via DefaultAzureCredential/Managed Identity
+
+  schemas:
+    PredictionRequest:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          description: Array of appointment feature sets
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/AppointmentFeatures'
+
+    AppointmentFeatures:
+      type: object
+      description: Feature set for a single appointment prediction (aligned with Athena/Epic schema)
+      required:
+        - patient_age_bucket
+        - patient_gender
+        - sipg2
+        - historical_no_show_rate
+        - historical_no_show_count
+        - lead_time_days
+        - appointmenttypename
+        - virtual_flag
+        - new_patient_flag
+        - day_of_week
+        - hour_of_day
+        - appointmentduration
+        - provider_specialty
+        - providertype
+        - placeofservicetype
+      properties:
+        patient_age_bucket:
+          type: string
+          enum: ["0-17", "18-39", "40-64", "65+"]
+          description: Patient age range bucket
+          example: "40-64"
+        patient_gender:
+          type: string
+          enum: ["M", "F", "Other"]
+          description: Patient gender
+          example: "F"
+        sipg2:
+          type: string
+          enum: ["Commercial", "Medicare", "Medicaid", "Self-Pay"]
+          description: General payer grouping
+          example: "Commercial"
+        patient_zip_code:
+          type: string
+          pattern: "^[0-9]{5}$"
+          description: Patient zip code (5 digits)
+          example: "53202"
+        portal_engaged:
+          type: boolean
+          description: Patient logged into portal in last 90 days
+          example: true
+        historical_no_show_rate:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Patient's historical no-show rate (0.0-1.0)
+          example: 0.1
+        historical_no_show_count:
+          type: integer
+          minimum: 0
+          description: Patient's total historical no-shows
+          example: 1
+        lead_time_days:
+          type: integer
+          minimum: 0
+          description: Days between scheduling and appointment
+          example: 7
+        appointmenttypename:
+          type: string
+          description: Appointment type name from source system
+          example: "FOLLOW UP"
+        virtual_flag:
+          type: string
+          enum: ["Virtual-Telephone", "Virtual-Video", "Non-Virtual"]
+          description: Virtual appointment classification
+          example: "Non-Virtual"
+        new_patient_flag:
+          type: string
+          enum: ["NEW PATIENT", "EST PATIENT"]
+          description: New vs established patient
+          example: "EST PATIENT"
+        day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: Day of week (0=Monday, 6=Sunday)
+          example: 2
+        hour_of_day:
+          type: integer
+          minimum: 0
+          maximum: 23
+          description: Hour of appointment (24-hour format)
+          example: 10
+        appointmentduration:
+          type: integer
+          minimum: 5
+          maximum: 240
+          description: Appointment duration in minutes
+          example: 30
+        provider_specialty:
+          type: string
+          description: Provider medical specialty
+          example: "Internal Medicine"
+        providertype:
+          type: string
+          enum: ["Physician", "NP", "PA", "Other"]
+          description: Provider type category
+          example: "Physician"
+        departmentspecialty:
+          type: string
+          description: Department specialty
+          example: "Internal Medicine"
+        placeofservicetype:
+          type: string
+          enum: ["Office", "Telehealth", "Hospital", "Other"]
+          description: Place of service type
+          example: "Office"
+        market:
+          type: string
+          description: Geographic market (optional)
+          example: "Wisconsin"
+        webschedulableyn:
+          type: integer
+          enum: [0, 1]
+          description: Whether appointment was self-scheduled online
+          example: 0
+        cycletime:
+          type: number
+          format: float
+          description: Time between scheduling and appointment (optional)
+          example: 7.5
+
+    PredictionResponse:
+      type: object
+      required:
+        - predictions
+        - model_version
+      properties:
+        predictions:
+          type: array
+          description: Prediction results (same order as input)
+          items:
+            $ref: '#/components/schemas/PredictionResult'
+        model_version:
+          type: string
+          description: Model version used for prediction
+          example: "noshow-v1.2.0"
+
+    PredictionResult:
+      type: object
+      required:
+        - no_show_probability
+        - risk_level
+      properties:
+        no_show_probability:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Probability of no-show (0.0-1.0)
+          example: 0.23
+        risk_level:
+          type: string
+          enum: ["Low", "Medium", "High"]
+          description: Categorized risk level
+          example: "Low"
+        feature_importances:
+          type: array
+          description: Top contributing factors to the prediction
+          items:
+            $ref: '#/components/schemas/FeatureImportance'
+
+    FeatureImportance:
+      type: object
+      required:
+        - feature
+        - importance
+        - direction
+      properties:
+        feature:
+          type: string
+          description: Feature name
+          example: "historical_no_show_rate"
+        importance:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Relative importance (0.0-1.0)
+          example: 0.35
+        direction:
+          type: string
+          enum: ["Increases", "Decreases"]
+          description: Effect direction on no-show risk
+          example: "Increases"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Error code
+              example: "InvalidFeatures"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Missing required feature: age"
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  issue:
+                    type: string

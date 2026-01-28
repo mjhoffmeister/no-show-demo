@@ -1,0 +1,425 @@
+openapi: 3.1.0
+info:
+  title: No-Show Predictor Data API
+  description: |
+    Internal API for accessing appointment and patient data from Azure SQL Database.
+    Used by the agent tools to retrieve data for prediction and query requests.
+    Backed by Entity Framework Core with Managed Identity authentication.
+  version: 1.0.0
+
+servers:
+  - url: https://{agentHost}/api/data
+    description: Agent internal data service (Azure SQL backend)
+    variables:
+      agentHost:
+        default: localhost:8088
+        description: Agent host (local or deployed)
+
+paths:
+  /patients:
+    get:
+      operationId: listPatients
+      summary: List all patients
+      description: Returns the full list of synthetic patients
+      tags:
+        - Data
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of patients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  patients:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Patient'
+                  total:
+                    type: integer
+
+  /patients/{patientId}:
+    get:
+      operationId: getPatient
+      summary: Get patient by ID
+      tags:
+        - Data
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Patient details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientDetail'
+        '404':
+          description: Patient not found
+
+  /appointments:
+    get:
+      operationId: listAppointments
+      summary: List appointments with filters
+      description: Query appointments by date range, patient, provider, or status
+      tags:
+        - Data
+      parameters:
+        - name: startDate
+          in: query
+          description: Filter appointments on or after this date
+          schema:
+            type: string
+            format: date
+          example: "2026-01-28"
+        - name: endDate
+          in: query
+          description: Filter appointments on or before this date
+          schema:
+            type: string
+            format: date
+          example: "2026-01-31"
+        - name: patientId
+          in: query
+          description: Filter by patient ID
+          schema:
+            type: string
+            format: uuid
+        - name: providerId
+          in: query
+          description: Filter by provider ID
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by appointment status
+          schema:
+            type: string
+            enum: ["Scheduled", "Completed", "NoShow", "Cancelled"]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of appointments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  appointments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AppointmentWithPatient'
+                  total:
+                    type: integer
+
+  /appointments/{appointmentId}:
+    get:
+      operationId: getAppointment
+      summary: Get appointment by ID
+      tags:
+        - Data
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Appointment details with patient and provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentDetail'
+        '404':
+          description: Appointment not found
+
+  /providers:
+    get:
+      operationId: listProviders
+      summary: List all providers
+      tags:
+        - Data
+      responses:
+        '200':
+          description: List of providers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Provider'
+
+  /statistics/summary:
+    get:
+      operationId: getStatisticsSummary
+      summary: Get data summary statistics
+      description: Returns aggregate statistics about appointments and no-shows
+      tags:
+        - Data
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatisticsSummary'
+
+components:
+  schemas:
+    Patient:
+      type: object
+      required:
+        - patient_id
+        - first_name
+        - last_name
+        - date_of_birth
+        - gender
+        - insurance_type
+        - distance_miles
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        first_name:
+          type: string
+          example: "Maria"
+        last_name:
+          type: string
+          example: "Garcia"
+        date_of_birth:
+          type: string
+          format: date
+          example: "1980-05-15"
+        gender:
+          type: string
+          enum: ["M", "F", "Other"]
+          example: "F"
+        insurance_type:
+          type: string
+          enum: ["Private", "Medicare", "Medicaid", "Uninsured"]
+          example: "Private"
+        distance_miles:
+          type: number
+          format: float
+          example: 5.2
+        phone_number:
+          type: string
+          example: "+15551234567"
+        email:
+          type: string
+          format: email
+          example: "maria.garcia@example.com"
+
+    PatientDetail:
+      allOf:
+        - $ref: '#/components/schemas/Patient'
+        - type: object
+          properties:
+            age:
+              type: integer
+              description: Calculated age
+              example: 45
+            historical_no_show_count:
+              type: integer
+              example: 2
+            historical_no_show_rate:
+              type: number
+              format: float
+              example: 0.15
+            total_appointments:
+              type: integer
+              example: 13
+            recent_appointments:
+              type: array
+              description: Last 5 appointments
+              items:
+                $ref: '#/components/schemas/Appointment'
+
+    Provider:
+      type: object
+      required:
+        - provider_id
+        - first_name
+        - last_name
+        - specialty
+      properties:
+        provider_id:
+          type: string
+          format: uuid
+          example: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+        first_name:
+          type: string
+          example: "James"
+        last_name:
+          type: string
+          example: "Smith"
+        specialty:
+          type: string
+          example: "Internal Medicine"
+        display_name:
+          type: string
+          description: Formatted name with specialty
+          example: "Dr. James Smith, Internal Medicine"
+
+    Appointment:
+      type: object
+      required:
+        - appointment_id
+        - patient_id
+        - provider_id
+        - appointment_datetime
+        - appointment_type
+        - scheduled_at
+      properties:
+        appointment_id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        provider_id:
+          type: string
+          format: uuid
+        appointment_datetime:
+          type: string
+          format: date-time
+          example: "2026-01-29T10:30:00Z"
+        appointment_type:
+          type: string
+          enum: ["NewPatient", "FollowUp", "Procedure", "Wellness"]
+        scheduled_at:
+          type: string
+          format: date-time
+        no_show:
+          type: boolean
+          nullable: true
+          description: null for future appointments
+        cancellation_datetime:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: ["Scheduled", "Completed", "NoShow", "Cancelled"]
+          description: Computed status
+        lead_time_days:
+          type: integer
+          description: Days between scheduling and appointment
+
+    AppointmentWithPatient:
+      allOf:
+        - $ref: '#/components/schemas/Appointment'
+        - type: object
+          properties:
+            patient:
+              $ref: '#/components/schemas/Patient'
+            provider:
+              $ref: '#/components/schemas/Provider'
+
+    AppointmentDetail:
+      allOf:
+        - $ref: '#/components/schemas/AppointmentWithPatient'
+        - type: object
+          properties:
+            patient_history:
+              type: object
+              properties:
+                total_appointments:
+                  type: integer
+                no_show_count:
+                  type: integer
+                no_show_rate:
+                  type: number
+                  format: float
+
+    StatisticsSummary:
+      type: object
+      properties:
+        total_patients:
+          type: integer
+          example: 1000
+        total_providers:
+          type: integer
+          example: 20
+        total_appointments:
+          type: integer
+          example: 10000
+        appointments_by_status:
+          type: object
+          properties:
+            scheduled:
+              type: integer
+            completed:
+              type: integer
+            no_show:
+              type: integer
+            cancelled:
+              type: integer
+        overall_no_show_rate:
+          type: number
+          format: float
+          example: 0.22
+        no_show_by_day_of_week:
+          type: array
+          items:
+            type: object
+            properties:
+              day:
+                type: string
+              rate:
+                type: number
+                format: float
+        no_show_by_insurance:
+          type: array
+          items:
+            type: object
+            properties:
+              insurance_type:
+                type: string
+              rate:
+                type: number
+                format: float

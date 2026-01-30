@@ -1,0 +1,107 @@
+Class DeploymentTemplateOperations: This is an experimental class, and may change at any time. Please see https://aka.ms/azuremlexperimental for more information.
+{
+  "code": "azureml:/subscriptions/c94297dc-12b3-40c7-a773-64846b40a34c/resourceGroups/rg-noshow-dev-ncus-001/providers/Microsoft.MachineLearningServices/workspaces/mlw-noshow-dev-ncus-001/codes/a4ed1404-a65b-4ff9-b621-4f4e6f661af4/versions/1",
+  "command": "python automl_driver.py",
+  "compute": "azureml:cpu-cluster",
+  "creation_context": {
+    "created_at": "2026-01-30T20:01:13.685023+00:00",
+    "created_by": "System Administrator",
+    "created_by_type": "User"
+  },
+  "display_name": "orange_boat_9jqx05b7",
+  "environment": "azureml://registries/azureml/environments/AzureML-ai-ml-automl/versions/38",
+  "environment_variables": {
+    "AUTOML_SDK_RESOURCE_URL": "https://aka.ms/automl-resources/"
+  },
+  "experiment_name": "noshow-prediction",
+  "id": "azureml:/subscriptions/c94297dc-12b3-40c7-a773-64846b40a34c/resourceGroups/rg-noshow-dev-ncus-001/providers/Microsoft.MachineLearningServices/workspaces/mlw-noshow-dev-ncus-001/jobs/affable_piano_r606vln6m9_18",
+  "inputs": {},
+  "limits": {},
+  "name": "affable_piano_r606vln6m9_18",
+  "outputs": {
+    "default": {
+      "mode": "rw_mount",
+      "path": "azureml://datastores/workspaceartifactstore/ExperimentRun/dcid.affable_piano_r606vln6m9_18",
+      "type": "uri_folder"
+    }
+  },
+  "parameters": {},
+  "properties": {
+    "ContentSnapshotId": "a4ed1404-a65b-4ff9-b621-4f4e6f661af4",
+    "EndTimeUtc": "2026-01-30 20:02:55",
+    "ProcessInfoFile": "azureml-logs/process_info.json",
+    "ProcessStatusFile": "azureml-logs/process_status.json",
+    "StartTimeUtc": "2026-01-30 20:01:34",
+    "_aml_system_scenario_identification": "Remote.Child",
+    "_azureml.ClusterName": "cpu-cluster",
+    "_azureml.ComputeTargetType": "amlctrain",
+    "best_individual_iteration": "15",
+    "best_individual_pipeline_score": "0.6009969541792795",
+    "conda_env_data_location": "aml://artifact/ExperimentRun/dcid.affable_piano_r606vln6m9_18/outputs/conda_env_v_1_0_0.yml",
+    "core_hours": "0.01967884138888889",
+    "dependencies_versions": "{\"azureml-dataset-runtime\": \"1.61.0\", \"azureml-train-restclients-hyperdrive\": \"1.61.0\", \"azureml-interpret\": \"1.61.0\", \"azureml-dataprep-rslex\": \"2.25.2\", \"azureml-automl-runtime\": \"1.61.0\", \"azureml-defaults\": \"1.61.0\", \"azureml-responsibleai\": \"1.61.0\", \"azureml-dataprep\": \"5.4.2\", \"azureml-train-automl-client\": \"1.61.0.post1\", \"azureml-training-tabular\": \"1.61.0\", \"azureml-train-core\": \"1.61.0\", \"azureml-automl-core\": \"1.61.0.post1\", \"azureml-core\": \"1.61.0.post1\", \"azureml-train-automl-runtime\": \"1.61.0\", \"azureml-dataprep-native\": \"42.1.0\", \"azureml-telemetry\": \"1.61.0\", \"azureml-mlflow\": \"1.61.0.post1\", \"azureml-train-automl\": \"1.61.0.post1\", \"azureml-inference-server-http\": \"1.5.0\", \"azureml-pipeline-core\": \"1.61.0\"}",
+    "ensemble_weights": "[0.3333333333333333, 0.13333333333333333, 0.06666666666666667, 0.06666666666666667, 0.06666666666666667, 0.06666666666666667, 0.06666666666666667, 0.06666666666666667, 0.06666666666666667, 0.06666666666666667]",
+    "ensembled_algorithms": "['LightGBM', 'XGBoostClassifier', 'LightGBM', 'LightGBM', 'ExtremeRandomTrees', 'LogisticRegression', 'XGBoostClassifier', 'RandomForest', 'RandomForest', 'XGBoostClassifier']",
+    "ensembled_iterations": "[15, 12, 4, 0, 17, 16, 5, 6, 3, 8]",
+    "ensembled_run_ids": "['affable_piano_r606vln6m9_15', 'affable_piano_r606vln6m9_12', 'affable_piano_r606vln6m9_4', 'affable_piano_r606vln6m9_0', 'affable_piano_r606vln6m9_17', 'affable_piano_r606vln6m9_16', 'affable_piano_r606vln6m9_5', 'affable_piano_r606vln6m9_6', 'affable_piano_r606vln6m9_3', 'affable_piano_r606vln6m9_8']",
+    "errors": "{}",
+    "feature_skus": "automatedml_sdk_guardrails",
+    "fit_time": "36",
+    "goal": "AUC_weighted_max",
+    "iteration": "18",
+    "model_data_location": "aml://artifact/ExperimentRun/dcid.affable_piano_r606vln6m9_18/outputs/model.pkl",
+    "model_exp_support": "True",
+    "model_name": "affablepianor6018",
+    "model_output_path": "outputs/model.pkl",
+    "model_size_on_disk": "4969062",
+    "num_cores": "4",
+    "num_logical_cores": "4",
+    "onnx_model_resource": "{}",
+    "peak_memory_usage": "4433412",
+    "pipeline_graph_version": "1.0.0",
+    "pipeline_id": "__AutoML_Ensemble__",
+    "pipeline_script": "{\"pipeline_id\":\"__AutoML_Ensemble__\",\"objects\":[{\"module\":\"azureml.train.automl.ensemble\",\"class_name\":\"Ensemble\",\"spec_class\":\"sklearn\",\"param_args\":[],\"param_kwargs\":{\"automl_settings\":\"{'task_type':'classification','primary_metric':'AUC_weighted','verbosity':20,'ensemble_iterations':15,'ensemble_download_models_timeout_sec':300,'is_timeseries':False,'compute_target':'cpu-cluster','subscription_id':'c94297dc-12b3-40c7-a773-64846b40a34c','time_column_name':None,'grain_column_names':None}\",\"ensemble_run_id\":\"affable_piano_r606vln6m9_18\",\"experiment_name\":\"noshow-prediction\",\"workspace_name\":\"mlw-noshow-dev-ncus-001\",\"subscription_id\":\"c94297dc-12b3-40c7-a773-64846b40a34c\",\"resource_group_name\":\"rg-noshow-dev-ncus-001\"}}]}",
+    "pipeline_spec": "{\"pipeline_id\":\"__AutoML_Ensemble__\",\"objects\":[{\"module\":\"azureml.train.automl.ensemble\",\"class_name\":\"Ensemble\",\"spec_class\":\"sklearn\",\"param_args\":[],\"param_kwargs\":{\"automl_settings\":\"{'task_type':'classification','primary_metric':'AUC_weighted','verbosity':20,'ensemble_iterations':15,'ensemble_download_models_timeout_sec':300,'is_timeseries':False,'compute_target':'cpu-cluster','subscription_id':'c94297dc-12b3-40c7-a773-64846b40a34c','time_column_name':None,'grain_column_names':None}\",\"ensemble_run_id\":\"affable_piano_r606vln6m9_18\",\"experiment_name\":\"noshow-prediction\",\"workspace_name\":\"mlw-noshow-dev-ncus-001\",\"subscription_id\":\"c94297dc-12b3-40c7-a773-64846b40a34c\",\"resource_group_name\":\"rg-noshow-dev-ncus-001\"}}]}",
+    "predicted_cost": null,
+    "primary_metric": "AUC_weighted",
+    "runTemplate": "automl_child",
+    "run_algorithm": "VotingEnsemble",
+    "run_preprocessor": "",
+    "run_properties": "classification_labels=numpy.array([0, 1]",
+    "score": "0.6046728172934689",
+    "score_table": "NaN",
+    "scoring_data_location": "aml://artifact/ExperimentRun/dcid.affable_piano_r606vln6m9_18/outputs/scoring_file_v_1_0_0.py",
+    "scoring_data_location_pbi": "aml://artifact/ExperimentRun/dcid.affable_piano_r606vln6m9_18/outputs/scoring_file_pbi_v_1_0_0.py",
+    "scoring_data_location_v2": "aml://artifact/ExperimentRun/dcid.affable_piano_r606vln6m9_18/outputs/scoring_file_v_2_0_0.py",
+    "training_percent": "100",
+    "training_type": "MeanCrossValidation",
+    "vm_configuration": "x86_64"
+  },
+  "queue_settings": {
+    "job_tier": "null"
+  },
+  "resourceGroup": "rg-noshow-dev-ncus-001",
+  "resources": {
+    "instance_count": 1,
+    "properties": {},
+    "shm_size": "2g"
+  },
+  "services": {
+    "Studio": {
+      "endpoint": "https://ml.azure.com/runs/affable_piano_r606vln6m9_18?wsid=/subscriptions/c94297dc-12b3-40c7-a773-64846b40a34c/resourcegroups/rg-noshow-dev-ncus-001/workspaces/mlw-noshow-dev-ncus-001&tid=0813a51f-4efd-4f96-bb41-7638192e3a7a",
+      "type": "Studio"
+    },
+    "Tracking": {
+      "endpoint": "azureml://northcentralus.api.azureml.ms/mlflow/v1.0/subscriptions/c94297dc-12b3-40c7-a773-64846b40a34c/resourceGroups/rg-noshow-dev-ncus-001/providers/Microsoft.MachineLearningServices/workspaces/mlw-noshow-dev-ncus-001?",
+      "type": "Tracking"
+    }
+  },
+  "status": "Completed",
+  "tags": {
+    "mlflow.source.name": "automl_driver.py",
+    "mlflow.source.type": "JOB",
+    "model_explain_run_id": "affable_piano_r606vln6m9_ModelExplain",
+    "model_explanation": "True"
+  },
+  "type": "command"
+}

@@ -1,0 +1,47 @@
+# AutoML Classification Job Configuration
+# For Azure ML CLI v2 submission
+# Note: No static 'name' field - Azure ML auto-generates unique job names
+
+$schema: https://azuremlschemas.azureedge.net/latest/autoMLJob.schema.json
+type: automl
+
+display_name: "No-Show Prediction AutoML"
+description: "AutoML classification for no-show prediction"
+experiment_name: noshow-prediction
+
+compute: azureml:cpu-cluster
+
+task: classification
+primary_metric: AUC_weighted
+
+# Version 2: Enriched features including patient demographics, insurance, 
+# provider/dept info, lead_time_days, day_of_week, hour_of_day, historical_no_show_rate
+training_data:
+  path: azureml:noshow-training-data:2
+  type: mltable
+
+target_column_name: no_show
+
+# Enable model explainability
+training:
+  enable_model_explainability: true
+
+# Featurization settings
+featurization:
+  mode: auto
+
+# Cross-validation settings
+n_cross_validations: 5
+
+# Training resource limits
+limits:
+  timeout_minutes: 60
+  trial_timeout_minutes: 20
+  max_concurrent_trials: 2
+  max_trials: 20
+  enable_early_termination: true
+
+# Job tags
+tags:
+  project: no-show-demo
+  environment: development

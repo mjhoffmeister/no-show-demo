@@ -1,0 +1,9 @@
+$schema: https://azuremlschemas.azureedge.net/latest/MLTable.schema.json
+type: mltable
+
+paths:
+  - file: ./train.parquet
+
+transformations:
+  - read_parquet:
+      include_path_column: false

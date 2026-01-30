@@ -1,0 +1,98 @@
+@using NoShowPredictor.Web.Models
+@using MudBlazor
+
+<div class="chat-message @(Message.IsUser ? "user-message" : "assistant-message")">
+    <MudPaper Class="message-bubble pa-3" Elevation="1">
+        @if (Message.IsLoading)
+        {
+            <div class="d-flex align-center gap-2">
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Thinking...</MudText>
+            </div>
+        }
+        else if (Message.HasError)
+        {
+            <div class="d-flex align-start gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Size="Size.Small" />
+                <div>
+                    <MudText Typo="Typo.body2" Color="Color.Error">@Message.Error</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Please try again</MudText>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="message-content">
+                @if (Message.IsUser)
+                {
+                    <MudText Typo="Typo.body1">@Message.Content</MudText>
+                }
+                else
+                {
+                    @* Render assistant messages with preserved formatting *@
+                    <MudText Typo="Typo.body1" Style="white-space: pre-wrap;">@Message.Content</MudText>
+                }
+            </div>
+        }
+        
+        <MudText Typo="Typo.caption" Class="message-timestamp mud-text-secondary mt-2">
+            @Message.Timestamp.ToString("h:mm tt")
+        </MudText>
+    </MudPaper>
+</div>
+
+@code {
+    /// <summary>
+    /// The chat message to display.
+    /// </summary>
+    [Parameter]
+    public required ChatMessageModel Message { get; set; }
+
+    /// <summary>
+    /// Event callback when an appointment ID is clicked.
+    /// </summary>
+    [Parameter]
+    public EventCallback<int> OnAppointmentClick { get; set; }
+}
+
+<style>
+    .chat-message {
+        display: flex;
+        margin-bottom: 1rem;
+    }
+
+    .user-message {
+        justify-content: flex-end;
+    }
+
+    .user-message .message-bubble {
+        background-color: var(--mud-palette-primary);
+        color: var(--mud-palette-primary-text);
+        border-radius: 18px 18px 4px 18px;
+        max-width: 80%;
+    }
+
+    .assistant-message {
+        justify-content: flex-start;
+    }
+
+    .assistant-message .message-bubble {
+        background-color: var(--mud-palette-surface);
+        border-radius: 18px 18px 18px 4px;
+        max-width: 85%;
+    }
+
+    .message-content {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .message-timestamp {
+        text-align: right;
+        opacity: 0.7;
+    }
+
+    .user-message .message-timestamp {
+        color: var(--mud-palette-primary-text);
+    }
+</style>

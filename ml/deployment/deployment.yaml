@@ -1,0 +1,77 @@
+# Azure ML Online Deployment Configuration
+# No-Show Prediction Model Deployment
+#
+# Deploy with:
+#   az ml online-deployment create --file deployment.yaml --endpoint-name noshow-inference
+#
+# References:
+#   - https://learn.microsoft.com/azure/machine-learning/how-to-deploy-managed-online-endpoints
+
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
+
+# Deployment identification
+name: noshow-model-v1
+description: "No-show prediction model deployment v1"
+
+# Parent endpoint (created by Terraform)
+endpoint_name: noshow-predictor
+
+# Model reference (registered model from AutoML training)
+# Update the version after training completes
+model: azureml:noshow-predictor:1
+
+# Environment for inference
+# AutoML creates an environment automatically; use that or create custom
+environment:
+  # Option 1: Use curated environment (recommended for AutoML models)
+  # name: AzureML-sklearn-1.0-ubuntu20.04-py38-cpu
+  # version: 1
+  
+  # Option 2: Custom environment with inference dependencies
+  conda_file: ./environment.yaml
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+
+# Scoring script for custom inference logic
+code_configuration:
+  code: ./code
+  scoring_script: score.py
+
+# Compute configuration
+instance_type: Standard_DS2_v2
+instance_count: 1
+
+# Scale settings
+scale_settings:
+  type: default  # Manual scaling
+
+# Request settings
+request_settings:
+  request_timeout_ms: 30000  # 30 second timeout
+  max_concurrent_requests_per_instance: 10
+
+# Liveness probe configuration
+liveness_probe:
+  initial_delay: 30
+  period: 10
+  timeout: 2
+  success_threshold: 1
+  failure_threshold: 30
+
+# Readiness probe configuration
+readiness_probe:
+  initial_delay: 10
+  period: 10
+  timeout: 2
+  success_threshold: 1
+  failure_threshold: 30
+
+# Environment variables for the deployment
+environment_variables:
+  AZUREML_MODEL_DIR: azureml-models
+  APP_INSIGHTS_ENABLED: "true"
+
+# Tags for organization
+tags:
+  model_type: automl-classification
+  project: no-show-demo
+  version: v1

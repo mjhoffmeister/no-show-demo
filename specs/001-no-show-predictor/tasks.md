@@ -16,17 +16,17 @@
 
 **Purpose**: Project initialization, directory structure, and base configurations
 
-- [ ] T001 Create directory structure: agent/, frontend/, ml/, infra/ per plan.md
-- [ ] T002 [P] Initialize .NET solution with agent/NoShowPredictor.sln
-- [ ] T003 [P] Initialize frontend/src/NoShowPredictor.Web Blazor WASM project with .NET 10
-- [ ] T004 [P] Initialize ml/ Python project with requirements.txt per research.md Section 2.1 (azure-ai-ml==1.31.0, pandas==3.0.0, pyarrow==23.0.0, faker==40.1.2, etc.)
-- [ ] T005 [P] Create infra/providers.tf with AzApi provider 2.8.0 configuration
-- [ ] T006 [P] Create azure.yaml azd manifest with agent, frontend, ml services
-- [ ] T007 [P] Create .env.example with AZURE_SUBSCRIPTION_ID, AZURE_LOCATION=northcentralus
-- [ ] T008 [P] Add .gitignore for .NET, Python, Terraform artifacts
-- [ ] T009 [P] Create agent/README.md with component overview
-- [ ] T010 [P] Create frontend/README.md with component overview
-- [ ] T011 [P] Create ml/README.md with component overview
+- [x] T001 Create directory structure: agent/, frontend/, ml/, infra/ per plan.md
+- [x] T002 [P] Initialize .NET solution with agent/NoShowPredictor.sln
+- [x] T003 [P] Initialize frontend/src/NoShowPredictor.Web Blazor WASM project with .NET 10
+- [x] T004 [P] Initialize ml/ Python project with requirements.txt per research.md Section 2.1 (azure-ai-ml==1.31.0, pandas==3.0.0, pyarrow==23.0.0, faker==40.1.2, etc.)
+- [x] T005 [P] Create infra/providers.tf with AzApi provider 2.8.0 configuration
+- [x] T006 [P] Create azure.yaml azd manifest with agent, frontend, ml services
+- [x] T007 [P] Create .env.example with AZURE_SUBSCRIPTION_ID, AZURE_LOCATION=northcentralus
+- [x] T008 [P] Add .gitignore for .NET, Python, Terraform artifacts
+- [x] T009 [P] Create agent/README.md with component overview
+- [x] T010 [P] Create frontend/README.md with component overview
+- [x] T011 [P] Create ml/README.md with component overview
 
 ---
 
@@ -40,58 +40,58 @@
 
 > **Note**: All resource names MUST follow constitution Infrastructure Standards (CAF naming convention). See `.specify/memory/constitution.md` for required prefixes.
 
-- [ ] T012 [P] Create infra/variables.tf with subscription_id, location, resource_prefix variables
-- [ ] T013 [P] Create infra/main.tf root module importing all child modules
-- [ ] T014 [P] Create infra/outputs.tf exposing endpoints and connection strings
-- [ ] T015 [P] Create infra/modules/foundry/main.tf with AI Foundry account and project
-- [ ] T016 [P] Create infra/modules/foundry/gpt-deployment.tf with GPT-4o model deployment
-- [ ] T017 [P] Create infra/modules/ml/main.tf with Azure ML workspace and compute cluster
-- [ ] T018 [P] Create infra/modules/ml/endpoint.tf with managed online endpoint resource
-- [ ] T019 [P] Create infra/modules/sql/main.tf with Azure SQL Database (Basic tier)
-- [ ] T020 [P] Create infra/modules/sql/schema.sql with tables for Patient, Provider, Department, Appointment, Insurance
-- [ ] T021 [P] Create infra/modules/acr/main.tf with Azure Container Registry
-- [ ] T022 [P] Create infra/modules/static-web-app/main.tf with Azure Static Web Apps
-- [ ] T023 Create infra/modules/foundry/rbac.tf with Managed Identity role assignments (depends on T015-T022)
+- [x] T012 [P] Create infra/variables.tf with subscription_id, location, resource_prefix variables
+- [x] T013 [P] Create infra/main.tf root module importing all child modules
+- [x] T014 [P] Create infra/outputs.tf exposing endpoints and connection strings
+- [x] T015 [P] Create infra/modules/foundry/main.tf with AI Foundry account and project
+- [x] T016 [P] Create infra/modules/foundry/gpt-deployment.tf with GPT-4o model deployment
+- [x] T017 [P] Create infra/modules/ml/main.tf with Azure ML workspace and compute cluster
+- [x] T018 [P] Create infra/modules/ml/endpoint.tf with managed online endpoint resource
+- [x] T019 [P] Create infra/modules/sql/main.tf with Azure SQL Database (Basic tier)
+- [x] T020 [P] Create infra/modules/sql/schema.sql with tables for Patient, Provider, Department, Appointment, Insurance
+- [x] T021 [P] Create infra/modules/acr/main.tf with Azure Container Registry
+- [x] T022 [P] Create infra/modules/static-web-app/main.tf with Azure Static Web Apps
+- [x] T023 Create infra/modules/foundry/rbac.tf with Managed Identity role assignments (depends on T015-T022)
 
 ### Synthetic Data Generation (Python)
 
-- [ ] T024 Create ml/src/data/schema.py with dataclasses for Patient, Provider, Department, Appointment, Insurance per data-model.md
-- [ ] T025 Create ml/src/data/generate_synthetic.py with 5000 patients, 100 providers, 40 departments, 100000 appointments spanning 24+ months with patient journey patterns
-- [ ] T026 Create ml/src/data/seed_database.py to load parquet files into Azure SQL Database
-- [ ] T027 Add ml/tests/test_synthetic_data.py to validate data distributions, no-show rate ~22%, seasonality patterns, and patient journey sequences
+- [x] T024 Create ml/src/data/schema.py with dataclasses for Patient, Provider, Department, Appointment, Insurance per data-model.md
+- [x] T025 Create ml/src/data/generate_synthetic.py with 5000 patients, 100 providers, 40 departments, 100000 appointments spanning 24+ months with patient journey patterns
+- [x] T026 Create ml/src/data/seed_database.py to load parquet files into Azure SQL Database
+- [x] T027 Add ml/tests/test_synthetic_data.py to validate data distributions, no-show rate ~22%, seasonality patterns, and patient journey sequences
 
 ### ML Model Training (Python)
 
-- [ ] T028 Create ml/src/training/config.yaml with AutoML classification settings per research.md
-- [ ] T029 Create ml/src/training/train_automl.py to submit AutoML job with experiment tracking
-- [ ] T030 Create ml/src/evaluation/evaluate_model.py to compute accuracy, AUC, feature importance
-- [ ] T031 Create ml/deployment/endpoint.yaml with managed endpoint configuration
-- [ ] T032 Create ml/deployment/deployment.yaml with model deployment settings
-- [ ] T033 Create ml/src/evaluation/test_endpoint.py to validate deployed endpoint returns predictions
+- [x] T028 Create ml/src/training/config.yaml with AutoML classification settings per research.md
+- [x] T029 Create ml/src/training/train_automl.py to submit AutoML job with experiment tracking
+- [x] T030 Create ml/src/evaluation/evaluate_model.py to compute accuracy, AUC, feature importance
+- [x] T031 Create ml/deployment/endpoint.yaml with managed endpoint configuration
+- [x] T032 Create ml/deployment/deployment.yaml with model deployment settings
+- [x] T033 Create ml/src/evaluation/test_endpoint.py to validate deployed endpoint returns predictions
 
 ### Agent Core Components (.NET)
 
-- [ ] T034 Create agent/src/NoShowPredictor.Agent/NoShowPredictor.Agent.csproj with Microsoft.Agents.AI 1.0.0-preview.260127.1, Azure.AI.Projects 1.1.0, Azure.Identity, Microsoft.Data.SqlClient
-- [ ] T035 Create agent/src/NoShowPredictor.Agent/Models/Patient.cs entity per data-model.md
-- [ ] T036 [P] Create agent/src/NoShowPredictor.Agent/Models/Provider.cs entity per data-model.md
-- [ ] T037 [P] Create agent/src/NoShowPredictor.Agent/Models/Department.cs entity per data-model.md
-- [ ] T038 [P] Create agent/src/NoShowPredictor.Agent/Models/Appointment.cs entity per data-model.md
-- [ ] T039 [P] Create agent/src/NoShowPredictor.Agent/Models/Insurance.cs entity per data-model.md
-- [ ] T040 [P] Create agent/src/NoShowPredictor.Agent/Models/Prediction.cs with RiskFactor embedded type
-- [ ] T041 [P] Create agent/src/NoShowPredictor.Agent/Models/Recommendation.cs entity
-- [ ] T042 Create agent/src/NoShowPredictor.Agent/Data/AppointmentRepository.cs with data access layer using Managed Identity connection
-- [ ] T043 Create agent/src/NoShowPredictor.Agent/Services/IMLEndpointClient.cs interface per ml-inference.openapi.yaml
-- [ ] T044 Create agent/src/NoShowPredictor.Agent/Services/MLEndpointClient.cs implementation using DefaultAzureCredential
-- [ ] T045 Create agent/src/NoShowPredictor.Agent/Program.cs with hosting adapter, DI registration, and telemetry
-- [ ] T046 Create agent/Dockerfile with .NET 10 runtime image
+- [x] T034 Create agent/src/NoShowPredictor.Agent/NoShowPredictor.Agent.csproj with Microsoft.Agents.AI 1.0.0-preview.260127.1, Azure.AI.Projects 1.1.0, Azure.Identity, Microsoft.Data.SqlClient
+- [x] T035 Create agent/src/NoShowPredictor.Agent/Models/Patient.cs entity per data-model.md
+- [x] T036 [P] Create agent/src/NoShowPredictor.Agent/Models/Provider.cs entity per data-model.md
+- [x] T037 [P] Create agent/src/NoShowPredictor.Agent/Models/Department.cs entity per data-model.md
+- [x] T038 [P] Create agent/src/NoShowPredictor.Agent/Models/Appointment.cs entity per data-model.md
+- [x] T039 [P] Create agent/src/NoShowPredictor.Agent/Models/Insurance.cs entity per data-model.md
+- [x] T040 [P] Create agent/src/NoShowPredictor.Agent/Models/Prediction.cs with RiskFactor embedded type
+- [x] T041 [P] Create agent/src/NoShowPredictor.Agent/Models/Recommendation.cs entity
+- [x] T042 Create agent/src/NoShowPredictor.Agent/Data/AppointmentRepository.cs with data access layer using Managed Identity connection
+- [x] T043 Create agent/src/NoShowPredictor.Agent/Services/IMLEndpointClient.cs interface per ml-inference.openapi.yaml
+- [x] T044 Create agent/src/NoShowPredictor.Agent/Services/MLEndpointClient.cs implementation using DefaultAzureCredential
+- [x] T045 Create agent/src/NoShowPredictor.Agent/Program.cs with hosting adapter, DI registration, and telemetry
+- [x] T046 Create agent/Dockerfile with .NET 10 runtime image
 
 ### Frontend Core Components (Blazor)
 
-- [ ] T047 Create frontend/src/NoShowPredictor.Web/NoShowPredictor.Web.csproj with MudBlazor 7.x
-- [ ] T048 Create frontend/src/NoShowPredictor.Web/Program.cs with MudBlazor and HttpClient registration
-- [ ] T049 Create frontend/src/NoShowPredictor.Web/wwwroot/index.html with MudBlazor CSS/JS references
-- [ ] T050 Create frontend/src/NoShowPredictor.Web/Shared/MainLayout.razor with MudThemeProvider
-- [ ] T051 Create frontend/src/NoShowPredictor.Web/Services/AgentApiClient.cs per agent-api.openapi.yaml
+- [x] T047 Create frontend/src/NoShowPredictor.Web/NoShowPredictor.Web.csproj with MudBlazor 7.x
+- [x] T048 Create frontend/src/NoShowPredictor.Web/Program.cs with MudBlazor and HttpClient registration
+- [x] T049 Create frontend/src/NoShowPredictor.Web/wwwroot/index.html with MudBlazor CSS/JS references
+- [x] T050 Create frontend/src/NoShowPredictor.Web/Shared/MainLayout.razor with MudThemeProvider
+- [x] T051 Create frontend/src/NoShowPredictor.Web/Services/AgentApiClient.cs per agent-api.openapi.yaml
 
 **Checkpoint**: Infrastructure deployed, data seeded, ML endpoint live, agent/frontend scaffolded
 
@@ -105,26 +105,26 @@
 
 ### Agent Implementation
 
-- [ ] T052 [US1] Create agent/src/NoShowPredictor.Agent/Tools/AppointmentTool.cs with GetAppointmentsByDateRange method
-- [ ] T053 [US1] Create agent/src/NoShowPredictor.Agent/Tools/PredictionTool.cs with GetPredictions method calling ML endpoint
-- [ ] T054 [US1] Create agent/src/NoShowPredictor.Agent/NoShowAgent.cs with system prompt from research.md and tools registration
-- [ ] T055 [US1] Add date parsing logic to AppointmentTool for "tomorrow", "today", relative dates
-- [ ] T056 [US1] Add risk level filtering (High/Medium/Low) to GetAppointmentsByDateRange
-- [ ] T057 [US1] Update Program.cs to wire NoShowAgent with ChatClientAgent and RunAIAgentAsync
+- [x] T052 [US1] Create agent/src/NoShowPredictor.Agent/Tools/AppointmentTool.cs with GetAppointmentsByDateRange method
+- [x] T053 [US1] Create agent/src/NoShowPredictor.Agent/Tools/PredictionTool.cs with GetPredictions method calling ML endpoint
+- [x] T054 [US1] Create agent/src/NoShowPredictor.Agent/NoShowAgent.cs with system prompt from research.md and tools registration
+- [x] T055 [US1] Add date parsing logic to AppointmentTool for "tomorrow", "today", relative dates
+- [x] T056 [US1] Add risk level filtering (High/Medium/Low) to GetAppointmentsByDateRange
+- [x] T057 [US1] Update Program.cs to wire NoShowAgent with ChatClientAgent and RunAIAgentAsync
 
 ### Frontend Implementation
 
-- [ ] T058 [US1] Create frontend/src/NoShowPredictor.Web/Models/ChatMessage.cs with Role, Content, Timestamp
-- [ ] T059 [US1] Create frontend/src/NoShowPredictor.Web/Components/ChatMessage.razor with user/assistant styling
-- [ ] T060 [US1] Create frontend/src/NoShowPredictor.Web/Pages/Chat.razor with message list and input box
-- [ ] T061 [US1] Add auto-scroll to latest message in Chat.razor
-- [ ] T062 [US1] Add loading indicator during agent response in Chat.razor
-- [ ] T063 [US1] Wire Chat.razor to AgentApiClient.CreateResponseAsync
+- [x] T058 [US1] Create frontend/src/NoShowPredictor.Web/Models/ChatMessage.cs with Role, Content, Timestamp
+- [x] T059 [US1] Create frontend/src/NoShowPredictor.Web/Components/ChatMessage.razor with user/assistant styling
+- [x] T060 [US1] Create frontend/src/NoShowPredictor.Web/Pages/Chat.razor with message list and input box
+- [x] T061 [US1] Add auto-scroll to latest message in Chat.razor
+- [x] T062 [US1] Add loading indicator during agent response in Chat.razor
+- [x] T063 [US1] Wire Chat.razor to AgentApiClient.CreateResponseAsync
 
 ### Integration
 
-- [ ] T064 [US1] Create agent/agent.yaml azd agent manifest with container config, environment variables, and session-only conversation state (FR-015: no persistent storage of patient identifiers)
-- [ ] T065 [US1] Update azure.yaml to include agent service with ACR build
+- [x] T064 [US1] Create agent/agent.yaml azd agent manifest with container config, environment variables, and session-only conversation state (FR-015: no persistent storage of patient identifiers)
+- [x] T065 [US1] Update azure.yaml to include agent service with ACR build
 - [ ] T066 [US1] Test end-to-end: deploy with `azd up`, ask about tomorrow's appointments
 
 **Checkpoint**: MVP complete - users can ask about high-risk appointments for tomorrow

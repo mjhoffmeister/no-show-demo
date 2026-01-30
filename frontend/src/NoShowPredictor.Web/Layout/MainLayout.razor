@@ -1,0 +1,68 @@
+﻿@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" IsDarkMode="@_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Primary">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-3">No-Show Predictor</MudText>
+        <MudSpacer />
+        <MudTooltip Text="Toggle Dark Mode">
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" 
+                           Color="Color.Inherit" 
+                           OnClick="@ToggleDarkMode" />
+        </MudTooltip>
+    </MudAppBar>
+    
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="1" Variant="@DrawerVariant.Mini" OpenMiniOnHover="true">
+        <MudNavMenu>
+            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+            <MudNavLink Href="/appointments" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.CalendarMonth">Appointments</MudNavLink>
+            <MudNavLink Href="/chat" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Chat">AI Chat</MudNavLink>
+            <MudNavLink Href="/analytics" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Analytics">Analytics</MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
+    
+    <MudMainContent Class="pt-16 px-4">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode = false;
+    
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#1976D2",
+            Secondary = "#00897B",
+            AppbarBackground = "#1976D2",
+            Background = "#F5F5F5",
+            Surface = "#FFFFFF",
+            Error = "#D32F2F",
+            Warning = "#FFA000",
+            Success = "#388E3C"
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#90CAF9",
+            Secondary = "#80CBC4",
+            AppbarBackground = "#1E1E1E",
+            Background = "#121212",
+            Surface = "#1E1E1E",
+            Error = "#EF5350",
+            Warning = "#FFB74D",
+            Success = "#81C784"
+        }
+    };
+    
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
+}

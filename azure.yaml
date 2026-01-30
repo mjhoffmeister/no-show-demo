@@ -1,0 +1,74 @@
+# Azure Developer CLI (azd) manifest
+# Deploy with: azd up
+# Teardown with: azd down
+
+name: no-show-predictor
+metadata:
+  template: custom
+
+# Infrastructure provisioning
+infra:
+  provider: terraform
+  path: infra
+
+# Service definitions
+services:
+  # .NET Hosted Agent
+  agent:
+    project: ./agent/src/NoShowPredictor.Agent
+    language: dotnet
+    host: containerapp
+    docker:
+      path: ./agent/Dockerfile
+      context: ./agent
+    # Environment variables mapped from Terraform outputs
+    env:
+      SQL_SERVER: ${AZURE_SQL_SERVER}
+      SQL_DATABASE: ${AZURE_SQL_DATABASE}
+      ML_ENDPOINT_URI: ${AZURE_ML_ENDPOINT_URL}
+      AI_FOUNDRY_ENDPOINT: ${AZURE_FOUNDRY_ENDPOINT}
+      AI_FOUNDRY_DEPLOYMENT: gpt-4o
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING}
+
+  # Blazor WebAssembly Frontend
+  frontend:
+    project: ./frontend/src/NoShowPredictor.Web
+    language: dotnet
+    host: staticwebapp
+    dist: ./frontend/src/NoShowPredictor.Web/bin/Release/net10.0/publish/wwwroot
+
+  # Note: ML training scripts (./ml) are not deployed as a service.
+  # They run locally and submit jobs to Azure ML compute via train_automl.py.
+
+# Hooks for custom deployment steps
+hooks:
+  # Run after infrastructure provisioning - export Terraform outputs as env vars
+  postprovision:
+    shell: pwsh
+    run: |
+      Write-Host "Infrastructure provisioned successfully"
+      
+      # Get Terraform outputs from azd's state location
+      $stateFile = ".azure/$env:AZURE_ENV_NAME/infra/terraform.tfstate"
+      $outputs = terraform output -json -state="$stateFile" | ConvertFrom-Json
+      
+      # Set environment variables for services (use quotes for values with special chars)
+      azd env set AZURE_SQL_SERVER "$($outputs.sql_server_fqdn.value)"
+      azd env set AZURE_SQL_DATABASE "$($outputs.sql_database_name.value)"
+      azd env set AZURE_ML_ENDPOINT_URL "$($outputs.ml_endpoint_url.value)"
+      azd env set AZURE_FOUNDRY_ENDPOINT "$($outputs.foundry_endpoint.value)"
+      azd env set AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING "$($outputs.application_insights_connection_string.value)"
+      azd env set AZURE_ACR_LOGIN_SERVER "$($outputs.acr_login_server.value)"
+      azd env set AZURE_STATIC_WEB_APP_URL "$($outputs.static_web_app_url.value)"
+      
+      Write-Host "Environment variables configured:"
+      Write-Host "  SQL_SERVER: $($outputs.sql_server_fqdn.value)"
+      Write-Host "  SQL_DATABASE: $($outputs.sql_database_name.value)"
+      Write-Host "  ML_ENDPOINT_URL: $($outputs.ml_endpoint_url.value)"
+      Write-Host "  AI_FOUNDRY_ENDPOINT: $($outputs.foundry_endpoint.value)"
+
+  # Run before deploying services
+  predeploy:
+    shell: pwsh
+    run: |
+      Write-Host "Preparing for deployment..."

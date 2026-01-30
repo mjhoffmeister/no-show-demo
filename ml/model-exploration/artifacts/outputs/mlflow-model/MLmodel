@@ -1,0 +1,30 @@
+artifact_path: outputs/mlflow-model
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.10.19
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: pickle
+    sklearn_version: 1.5.1
+metadata:
+  azureml.base_image: mcr.microsoft.com/azureml/curated/ai-ml-automl:38
+  azureml.engine: automl
+mlflow_version: 2.15.1
+model_size_bytes: 1873777
+model_uuid: 1a4ba530b2fc49f29abe13166192d4ac
+run_id: witty_lettuce_yl3kg689r9_18
+signature:
+  inputs: '[{"type": "string", "name": "appointmenttypename", "required": true}, {"type":
+    "string", "name": "virtual_flag", "required": true}, {"type": "string", "name":
+    "new_patient_flag", "required": true}, {"type": "long", "name": "appointmentduration",
+    "required": true}, {"type": "long", "name": "webschedulableyn", "required": true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "int64", "shape": [-1]}}]'
+  params: null
+utc_time_created: '2026-01-30 18:22:56.138804'

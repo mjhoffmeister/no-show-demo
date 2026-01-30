@@ -1,0 +1,29 @@
+# Conda environment specification. The dependencies defined in this file will
+# be automatically provisioned for runs with userManagedDependencies=False.
+
+# Details about the Conda environment file format:
+# https://conda.io/docs/user-guide/tasks/manage-environments.html#create-env-file-manually
+
+name: project_environment
+dependencies:
+  # The python interpreter version.
+  # Currently Azure ML only supports 3.8 and later.
+- python=3.10.19
+
+- pip:
+  - --find-links https://pypi.python.org/simple/index.html
+  - --extra-index-url https://pypi.python.org/simple
+  - azureml-train-automl-runtime==1.61.0
+  - inference-schema
+  - xgboost<=1.5.2
+  - prophet==1.1.4
+  - azureml-interpret==1.61.0
+  - azureml-defaults==1.61.0
+- numpy==1.23.5
+- pandas==1.5.3
+- scikit-learn==1.5.1
+- holidays==0.86
+- psutil==5.9.3
+channels:
+- anaconda
+- conda-forge

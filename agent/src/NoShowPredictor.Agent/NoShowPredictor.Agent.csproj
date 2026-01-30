@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>NoShowPredictor.Agent</RootNamespace>
+    <AssemblyName>NoShowPredictor.Agent</AssemblyName>
+    <UserSecretsId>061377b2-8eb2-43db-98bd-7091acfee3cf</UserSecretsId>
+  </PropertyGroup>
+
+  <!-- Azure AI Agent Framework -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI" Version="1.0.0-preview.260127.1" />
+    <PackageReference Include="Azure.AI.Projects" Version="1.1.0" />
+    <PackageReference Include="Azure.AI.Inference" Version="1.0.0-beta.5" />
+    <PackageReference Include="Microsoft.Extensions.AI.AzureAIInference" Version="9.6.0-preview.1.25310.2" />
+  </ItemGroup>
+
+  <!-- Azure Identity for credential-less auth -->
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.16.0" />
+  </ItemGroup>
+
+  <!-- Azure SQL Database connectivity -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
+  </ItemGroup>
+
+  <!-- Telemetry and observability -->
+  <ItemGroup>
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.ApplicationInsights" Version="2.23.0" />
+  </ItemGroup>
+
+  <!-- OpenAPI / Swagger -->
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.1" />
+  </ItemGroup>
+
+</Project>

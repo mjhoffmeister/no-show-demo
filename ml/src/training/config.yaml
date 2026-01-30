@@ -1,0 +1,181 @@
+# Azure AutoML Classification Configuration
+# No-Show Predictor ML Model Training Settings
+#
+# This configuration is used by train_automl.py to submit AutoML jobs
+# See: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-configure-auto-train
+
+# ============================================================================
+# Job Settings
+# ============================================================================
+job:
+  name: noshow-automl
+  experiment_name: noshow-prediction
+  description: "AutoML classification for medical appointment no-show prediction"
+  tags:
+    project: no-show-demo
+    environment: development
+    task: classification
+
+# ============================================================================
+# Task Settings
+# ============================================================================
+task:
+  type: classification
+  primary_metric: AUC_weighted  # Best for imbalanced binary classification
+  
+  # Target column (derived from appointmentstatus and check-in data)
+  target_column_name: no_show
+  
+  # Enable model explainability for feature importance
+  enable_model_explainability: true
+  
+  # Featurization settings
+  featurization:
+    mode: auto  # Let AutoML handle encoding and scaling
+  
+  # Training data reference (created by training script)
+  training_data:
+    path: azureml:noshow-training:1
+    type: mltable
+
+# ============================================================================
+# Training Limits
+# ============================================================================
+limits:
+  # Time budget
+  timeout_minutes: 60
+  trial_timeout_minutes: 20
+  max_concurrent_trials: 4
+  max_trials: 20
+  
+  # Early termination
+  enable_early_termination: true
+
+# ============================================================================
+# Validation Settings
+# ============================================================================
+validation:
+  # Use stratified k-fold to handle class imbalance (~22% no-show rate)
+  validation_type: k_fold
+  n_cross_validations: 5
+
+# ============================================================================
+# Compute Settings
+# ============================================================================
+compute:
+  target: cpu-cluster  # Reference to ML workspace compute cluster
+  
+  # Instance type for training
+  instance_type: Standard_DS3_v2
+
+# ============================================================================
+# Feature Columns
+# ============================================================================
+# Features aligned with data-model.md Feature Engineering View
+# CRITICAL: Only include features known at scheduling time (no post-appointment data)
+features:
+  # Patient features
+  - patient_age_bucket      # Age range category (0-17, 18-39, 40-64, 65+)
+  - patient_gender          # Gender category
+  - patient_zip_code        # Geographic indicator
+  - patient_race_ethnicity  # Demographics
+  - portal_engaged          # Portal activity in last 90 days
+  - historical_no_show_rate # Past no-show percentage
+  - historical_no_show_count # Past no-show count
+  
+  # Insurance features
+  - sipg2                   # General payer grouping (Commercial, Medicare, Medicaid, Self-Pay)
+  
+  # Appointment features
+  - lead_time_days          # Days scheduled ahead
+  - appointmenttypename     # Visit type name
+  - virtual_flag            # Virtual/Non-Virtual
+  - new_patient_flag        # New vs established patient
+  - day_of_week             # Day of week (0-6)
+  - hour_of_day             # Hour of appointment (0-23)
+  - appointmentduration     # Duration in minutes
+  - webschedulableyn        # Online scheduled flag
+  
+  # Provider features
+  - provider_specialty      # Provider specialty
+  - providertype            # Physician, NP, PA
+  
+  # Department features
+  - departmentspecialty     # Department specialty
+  - placeofservicetype      # Office, Telehealth
+  - market                  # Geographic market
+
+# ============================================================================
+# Excluded Features (Data Leakage Prevention)
+# ============================================================================
+# NEVER include these - they would cause target leakage
+excluded_features:
+  - appointmentstatus        # Contains target information
+  - appointmentcheckindatetime
+  - appointmentcheckoutdatetime
+  - appointmentcancelleddatetime
+  - no_show                  # This IS the target
+
+# ============================================================================
+# Data Settings
+# ============================================================================
+data:
+  # Data source configuration
+  source:
+    type: parquet
+    path: ml/data/synthetic/appointments.parquet
+  
+  # Train/test split settings
+  split:
+    test_size: 0.2
+    random_state: 42
+    stratify: true  # Stratify by no_show to maintain class balance
+  
+  # Filter to past appointments only (can't predict future outcomes)
+  filter:
+    column: appointmentdate
+    condition: lt  # less than
+    value: today  # Resolved at runtime
+
+# ============================================================================
+# Model Output Settings
+# ============================================================================
+output:
+  # Model registration settings
+  register_model: true
+  model_name: noshow-predictor
+  
+  # Output paths
+  metrics_path: ./outputs/metrics
+  model_path: ./outputs/model
+  
+  # MLflow tracking
+  mlflow:
+    experiment_name: noshow-prediction
+    tracking_uri: azureml  # Use Azure ML workspace tracking
+
+# ============================================================================
+# Inference Settings
+# ============================================================================
+inference:
+  # Managed endpoint configuration
+  endpoint_name: noshow-inference
+  
+  # Deployment settings
+  deployment:
+    name: noshow-model-v1
+    instance_type: Standard_DS2_v2
+    instance_count: 1
+    
+  # Request/response settings
+  scoring:
+    # Output probability for no-show class
+    output_columns:
+      - no_show_probability
+      - risk_level
+    
+    # Threshold for risk levels (from data-model.md)
+    risk_thresholds:
+      low: 0.3
+      medium: 0.6
+      # high: > 0.6

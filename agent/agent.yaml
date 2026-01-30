@@ -1,0 +1,81 @@
+# Agent manifest for Azure Developer CLI (azd)
+# This file defines the agent service configuration for deployment
+
+name: noshow-predictor-agent
+description: Azure AI Foundry Hosted Agent for medical appointment no-show predictions
+
+# Runtime configuration
+runtime:
+  language: dotnet
+  version: "10.0"
+
+# Container configuration
+container:
+  port: 8080
+  resources:
+    cpu: 0.5
+    memory: 1Gi
+  healthCheck:
+    path: /health
+    intervalSeconds: 30
+    failureThreshold: 3
+
+# Environment variables (mapped from Terraform outputs)
+# FR-015: No persistent storage of patient identifiers - session-only state
+env:
+  # Azure SQL Database connection (uses Managed Identity)
+  SQL_SERVER:
+    secret: false
+    source: AZURE_SQL_SERVER
+  SQL_DATABASE:
+    secret: false
+    source: AZURE_SQL_DATABASE
+  
+  # Azure ML endpoint for predictions
+  ML_ENDPOINT_URI:
+    secret: false
+    source: AZURE_ML_ENDPOINT_URI
+  
+  # Azure AI Foundry for LLM
+  AI_FOUNDRY_ENDPOINT:
+    secret: false
+    source: AZURE_AI_FOUNDRY_ENDPOINT
+  AI_FOUNDRY_DEPLOYMENT:
+    secret: false
+    value: gpt-4o
+  
+  # Application Insights telemetry (optional)
+  APPLICATIONINSIGHTS_CONNECTION_STRING:
+    secret: false
+    source: APPLICATIONINSIGHTS_CONNECTION_STRING
+
+# Security configuration
+security:
+  # Managed Identity for credential-less authentication
+  managedIdentity: true
+  
+  # No persistent storage of patient data per FR-015
+  conversationState: session-only
+
+# Scaling configuration
+scaling:
+  minReplicas: 0
+  maxReplicas: 3
+  rules:
+    - name: http-requests
+      http:
+        metadata:
+          concurrentRequests: 10
+
+# API configuration
+api:
+  basePath: /api
+  cors:
+    allowedOrigins:
+      - "*"
+    allowedMethods:
+      - GET
+      - POST
+      - OPTIONS
+    allowedHeaders:
+      - "*"

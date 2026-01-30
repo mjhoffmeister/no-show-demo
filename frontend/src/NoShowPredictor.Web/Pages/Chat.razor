@@ -1,0 +1,250 @@
+@page "/chat"
+@page "/"
+@using NoShowPredictor.Web.Models
+@using NoShowPredictor.Web.Services
+@using NoShowPredictor.Web.Components
+@inject IAgentApiClient AgentClient
+
+<PageTitle>No-Show Predictor - Chat</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="pa-4">
+    <MudPaper Elevation="2" Class="chat-container">
+        @* Header *@
+        <MudAppBar Elevation="0" Color="Color.Primary" Dense="true" Class="chat-header">
+            <MudIcon Icon="@Icons.Material.Filled.SmartToy" Class="mr-2" />
+            <MudText Typo="Typo.h6">No-Show Predictor Assistant</MudText>
+            <MudSpacer />
+            <MudTooltip Text="Clear conversation">
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep" 
+                               Color="Color.Inherit" 
+                               OnClick="ClearConversation"
+                               Disabled="@(!_messages.Any())" />
+            </MudTooltip>
+        </MudAppBar>
+
+        @* Messages area *@
+        <div class="messages-container" @ref="_messagesContainer">
+            @if (!_messages.Any())
+            {
+                <div class="welcome-message">
+                    <MudIcon Icon="@Icons.Material.Filled.WavingHand" Size="Size.Large" Color="Color.Primary" />
+                    <MudText Typo="Typo.h5" Class="mt-4">Welcome!</MudText>
+                    <MudText Typo="Typo.body1" Class="mud-text-secondary mt-2">
+                        I'm your scheduling assistant. I can help you identify patients at risk of missing appointments.
+                    </MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-4">
+                        Try asking me:
+                    </MudText>
+                    <div class="suggestion-chips mt-2">
+                        <MudChip T="string" Size="Size.Small" OnClick="@(() => SendSuggestion("Which patients are at risk of missing their appointments tomorrow?"))">
+                            High-risk appointments tomorrow
+                        </MudChip>
+                        <MudChip T="string" Size="Size.Small" OnClick="@(() => SendSuggestion("What scheduling actions should I take for tomorrow?"))">
+                            Scheduling recommendations
+                        </MudChip>
+                        <MudChip T="string" Size="Size.Small" OnClick="@(() => SendSuggestion("What does the no-show forecast look like for this week?"))">
+                            Weekly forecast
+                        </MudChip>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @foreach (var msg in _messages)
+                {
+                    <ChatMessage Message="@msg" OnAppointmentClick="HandleAppointmentClick" />
+                }
+            }
+        </div>
+
+        @* Input area *@
+        <MudDivider />
+        <div class="input-container pa-3">
+            <MudTextField @bind-Value="_currentMessage"
+                          Placeholder="Ask about appointments, predictions, or recommendations..."
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true"
+                          OnKeyUp="HandleKeyUp"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@Icons.Material.Filled.Send"
+                          AdornmentColor="Color.Primary"
+                          OnAdornmentClick="SendMessage"
+                          Disabled="@_isLoading"
+                          FullWidth="true"
+                          Class="flex-grow-1" />
+        </div>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private readonly List<ChatMessageModel> _messages = new();
+    private string _currentMessage = string.Empty;
+    private string? _conversationId;
+    private bool _isLoading;
+    private ElementReference _messagesContainer;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && _messages.Any())
+        {
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_currentMessage) || _isLoading)
+            return;
+
+        var userMessage = _currentMessage.Trim();
+        _currentMessage = string.Empty;
+
+        // Add user message
+        _messages.Add(new ChatMessageModel
+        {
+            Role = ChatRole.User,
+            Content = userMessage,
+            Timestamp = DateTime.Now
+        });
+
+        // Add loading indicator for assistant
+        var loadingMessage = new ChatMessageModel
+        {
+            Role = ChatRole.Assistant,
+            IsLoading = true,
+            Timestamp = DateTime.Now
+        };
+        _messages.Add(loadingMessage);
+
+        _isLoading = true;
+        StateHasChanged();
+        await ScrollToBottom();
+
+        try
+        {
+            var response = await AgentClient.SendChatMessageAsync(new ChatRequest
+            {
+                Message = userMessage,
+                ConversationId = _conversationId
+            });
+
+            // Update with actual response
+            loadingMessage.IsLoading = false;
+            loadingMessage.Content = response.Response;
+            loadingMessage.Timestamp = DateTime.Now;
+            
+            // Update conversation ID for continuity
+            _conversationId = response.ConversationId;
+
+            // Extract referenced appointments
+            if (response.ReferencedAppointments?.Any() == true)
+            {
+                loadingMessage.ReferencedAppointmentIds = response.ReferencedAppointments
+                    .Select(a => a.AppointmentId)
+                    .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            loadingMessage.IsLoading = false;
+            loadingMessage.Error = "Sorry, I encountered an error processing your request. Please try again.";
+            Console.Error.WriteLine($"Chat error: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task SendSuggestion(string suggestion)
+    {
+        _currentMessage = suggestion;
+        await SendMessage();
+    }
+
+    private void ClearConversation()
+    {
+        _messages.Clear();
+        _conversationId = null;
+        StateHasChanged();
+    }
+
+    private async Task HandleAppointmentClick(int appointmentId)
+    {
+        // Could navigate to appointment details or open a dialog
+        _currentMessage = $"Tell me more about appointment #{appointmentId}";
+        await SendMessage();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await Task.Delay(50); // Small delay to ensure DOM update
+            // JavaScript interop to scroll would go here
+            // For now, CSS handles auto-scroll with flex-direction: column-reverse workaround
+        }
+        catch
+        {
+            // Ignore scroll errors
+        }
+    }
+}
+
+<style>
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 120px);
+        max-height: 800px;
+        min-height: 400px;
+    }
+
+    .chat-header {
+        border-radius: 4px 4px 0 0;
+    }
+
+    .messages-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .welcome-message {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .suggestion-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+    }
+
+    .input-container {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        background-color: var(--mud-palette-surface);
+    }
+</style>

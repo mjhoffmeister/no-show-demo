@@ -1,0 +1,41 @@
+# Azure ML Managed Online Endpoint Configuration
+# No-Show Prediction Model Inference Endpoint
+#
+# NOTE: The endpoint is created by Terraform (infra/modules/ml/main.tf).
+# This file is for reference and manual deployments only.
+#
+# Deploy with:
+#   az ml online-endpoint create --file endpoint.yaml
+#
+# References:
+#   - https://learn.microsoft.com/azure/machine-learning/how-to-deploy-managed-online-endpoints
+
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineEndpoint.schema.json
+
+# Endpoint identification (must match Terraform-created endpoint)
+name: noshow-predictor
+description: "No-show prediction model endpoint"
+
+# Authentication mode - uses Entra ID tokens (no keys)
+auth_mode: aad_token
+
+# Tags for organization
+tags:
+  project: no-show-demo
+  environment: development
+  purpose: ml-inference
+
+# Traffic routing (configured via deployment)
+# traffic:
+#   noshow-model-v1: 100
+
+# Public network access
+# Set to disabled and use private endpoints in production
+public_network_access: enabled
+
+# Identity for accessing other Azure resources (e.g., Key Vault, Storage)
+identity:
+  type: system_assigned
+
+# Mirror traffic for shadow testing (optional)
+# mirror_traffic: {}

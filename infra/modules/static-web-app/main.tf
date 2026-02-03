@@ -43,7 +43,9 @@ resource "azapi_resource" "static_web_app" {
       tier = "Free"
     }
     properties = {}
-    tags = var.tags
+    tags = merge(var.tags, {
+      "azd-service-name" = "frontend"
+    })
   }
 
   response_export_values = ["properties.defaultHostname"]

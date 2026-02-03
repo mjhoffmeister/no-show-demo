@@ -33,8 +33,13 @@ ml/
 │   ├── training/                 # Model training
 │   │   ├── submit_automl_v2.py   # AutoML job submission
 │   │   └── config.yaml           # AutoML configuration
+│   ├── deployment/               # Model deployment
+│   │   └── deploy_model.py       # Automated deployment script
 │   └── evaluation/               # Model evaluation
 │       └── evaluate_model.py     # Metrics and validation
+├── deployment/                   # Deployment config files
+│   ├── endpoint.yaml             # Endpoint configuration
+│   └── deployment.yaml           # Deployment configuration
 ├── data/
 │   ├── ml_prepared/              # Training MLTable
 │   └── ml_test/                  # Holdout test MLTable
@@ -237,6 +242,75 @@ Even a "fair" model (AUC ~0.70) provides material value:
 | Waitlist management | Fill no-show slots from cancellation list |
 
 **ROI:** Cost of empty slot ($150-300) vs. cost of reminder call ($2-5) = significant revenue recovery with even 10-15% no-show reduction.
+
+---
+
+## Model Deployment
+
+### Automated Deployment Script
+
+Deploy a trained model to Azure ML managed endpoint:
+
+```bash
+# Set environment variables
+export AZURE_SUBSCRIPTION_ID=<subscription-id>
+export AZURE_RESOURCE_GROUP=<resource-group>
+export AZURE_ML_WORKSPACE=<workspace-name>
+
+# Deploy best model from AutoML job (auto-detects best child run)
+python -m ml.src.deployment.deploy_model --job-name <automl-job-name>
+
+# Or specify the child run if you know it
+python -m ml.src.deployment.deploy_model \
+  --job-name calm_bulb_0gtr3bskvp \
+  --child-run-suffix 3 \
+  --model-version 2
+```
+
+### Deployment Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--job-name` | (required) | AutoML parent job name |
+| `--child-run-suffix` | auto-detect | Child run suffix (e.g., 3) |
+| `--model-name` | noshow-predictor | Model registry name |
+| `--model-version` | 1 | Model version |
+| `--endpoint-name` | noshow-predictor | Endpoint name |
+| `--deployment-name` | noshow-model-v1 | Deployment name |
+| `--skip-registration` | false | Use existing registered model |
+
+### What the Script Does
+
+1. **Registers model** from AutoML job outputs to Azure ML Model Registry
+2. **Creates endpoint** if it doesn't exist (uses AAD token auth)
+3. **Deploys model** using MLflow no-code deployment
+4. **Routes traffic** 100% to the new deployment
+
+### Manual Deployment (Alternative)
+
+```bash
+# Register model
+az ml model create \
+  --name noshow-predictor \
+  --version 1 \
+  --path "azureml://jobs/<child-run-name>/outputs/artifacts/outputs/mlflow-model" \
+  --type mlflow_model \
+  -g <resource-group> \
+  -w <workspace>
+
+# Create endpoint
+az ml online-endpoint create --file ml/deployment/endpoint.yaml
+
+# Create deployment
+az ml online-deployment create --file ml/deployment/deployment.yaml
+
+# Set traffic
+az ml online-endpoint update \
+  --name noshow-predictor \
+  --traffic "noshow-model-v1=100" \
+  -g <resource-group> \
+  -w <workspace>
+```
 
 ---
 

@@ -28,7 +28,49 @@ resource "azapi_resource" "ml_endpoint" {
     tags = var.tags
   }
 
-  response_export_values = ["properties.scoringUri"]
+  response_export_values = ["properties.scoringUri", "identity"]
+}
+
+# -----------------------------------------------------------------------------
+# RBAC: Grant endpoint Storage Blob Data Contributor on ML storage
+# Required for endpoint to download model artifacts during deployment
+# -----------------------------------------------------------------------------
+
+resource "azapi_resource" "role_endpoint_storage_blob" {
+  type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
+  name      = uuidv5("url", "${azapi_resource.storage_ml.id}-${azapi_resource.ml_endpoint.output.identity.principalId}-endpoint-storage")
+  parent_id = azapi_resource.storage_ml.id
+
+  body = {
+    properties = {
+      roleDefinitionId = "${local.role_definition_prefix}/${local.role_storage_blob_contributor}"
+      principalId      = azapi_resource.ml_endpoint.output.identity.principalId
+      principalType    = "ServicePrincipal"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# RBAC: Grant endpoint AzureML Data Scientist on workspace
+# Required for endpoint to access registered models and artifacts
+# -----------------------------------------------------------------------------
+
+locals {
+  role_azureml_data_scientist = "f6c7c914-8db3-469d-8ca1-694a8f32e121"
+}
+
+resource "azapi_resource" "role_endpoint_workspace" {
+  type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
+  name      = uuidv5("url", "${azapi_resource.ml_workspace.id}-${azapi_resource.ml_endpoint.output.identity.principalId}-endpoint-workspace")
+  parent_id = azapi_resource.ml_workspace.id
+
+  body = {
+    properties = {
+      roleDefinitionId = "${local.role_definition_prefix}/${local.role_azureml_data_scientist}"
+      principalId      = azapi_resource.ml_endpoint.output.identity.principalId
+      principalType    = "ServicePrincipal"
+    }
+  }
 }
 
 # -----------------------------------------------------------------------------

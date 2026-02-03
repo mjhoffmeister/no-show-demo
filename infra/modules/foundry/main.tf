@@ -34,6 +34,11 @@ variable "container_registry_id" {
   type = string
 }
 
+variable "container_registry_login_server" {
+  type        = string
+  description = "ACR login server URL for the connection"
+}
+
 variable "tags" {
   type = map(string)
 }
@@ -188,7 +193,7 @@ resource "azapi_resource" "foundry_project" {
     tags = var.tags
   }
 
-  response_export_values = ["properties"]
+  response_export_values = ["properties", "identity"]
 }
 
 # -----------------------------------------------------------------------------
@@ -209,6 +214,57 @@ resource "azapi_resource" "agent_identity" {
 }
 
 # -----------------------------------------------------------------------------
+# Capability Host for Hosted Agents (Public Hosting - Foundry manages infra)
+# -----------------------------------------------------------------------------
+# With enablePublicHostingEnvironment=true, Foundry manages ACR/storage
+# No need to bring your own ACR or storage - azd ai agent handles it
+
+resource "azapi_resource" "capability_host" {
+  type      = "Microsoft.CognitiveServices/accounts/capabilityHosts@2025-10-01-preview"
+  name      = "agents"  # Must match azd ai agent expectations
+  parent_id = azapi_resource.foundry_account.id
+
+  body = {
+    properties = {
+      capabilityHostKind             = "Agents"
+      enablePublicHostingEnvironment = true  # Key: Foundry manages infrastructure
+    }
+  }
+
+  depends_on = [azapi_resource.foundry_project]
+}
+
+# -----------------------------------------------------------------------------
+# ACR Connection to Foundry Project (for azd ai agent image push)
+# -----------------------------------------------------------------------------
+# This connection allows azd ai agent to push container images to ACR
+# and for Foundry to pull them for hosted agent deployment
+
+resource "azapi_resource" "acr_connection" {
+  type      = "Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview"
+  name      = "acr-connection"
+  parent_id = azapi_resource.foundry_project.id
+
+  body = {
+    properties = {
+      category     = "ContainerRegistry"
+      target       = var.container_registry_login_server
+      authType     = "ManagedIdentity"
+      isSharedToAll = true
+      credentials = {
+        clientId   = azapi_resource.foundry_project.output.identity.principalId
+        resourceId = var.container_registry_id
+      }
+      metadata = {
+        ResourceId = var.container_registry_id
+      }
+    }
+  }
+
+  depends_on = [azapi_resource.foundry_project]
+}
+
+# -----------------------------------------------------------------------------
 # Outputs
 # -----------------------------------------------------------------------------
 
@@ -226,6 +282,11 @@ output "project_name" {
 
 output "project_id" {
   value = azapi_resource.foundry_project.id
+}
+
+output "project_resource_id" {
+  description = "Full ARM resource ID for azd ai agent init"
+  value       = azapi_resource.foundry_project.id
 }
 
 output "endpoint" {

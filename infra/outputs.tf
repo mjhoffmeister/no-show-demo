@@ -83,6 +83,11 @@ output "foundry_project_name" {
   value       = module.foundry.project_name
 }
 
+output "foundry_project_id" {
+  description = "Azure AI Foundry project resource ID (for azd ai agent init)"
+  value       = module.foundry.project_resource_id
+}
+
 output "foundry_endpoint" {
   description = "Azure AI Foundry endpoint URL"
   value       = module.foundry.endpoint

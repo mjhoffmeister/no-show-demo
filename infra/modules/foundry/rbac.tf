@@ -14,6 +14,7 @@ locals {
   role_sql_db_contributor         = "9b7fa17d-e63e-47b0-bb0a-15c516ac86ec"
   role_keyvault_secrets_user      = "4633458b-17de-408a-b874-0445c86b69e6"
   role_storage_blob_contributor   = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
+  role_acr_pull                   = "7f951dda-4ed3-4680-a7ca-43fe172d538d"  # AcrPull
 }
 
 # -----------------------------------------------------------------------------
@@ -102,6 +103,24 @@ resource "azapi_resource" "role_agent_storage_blob" {
     properties = {
       roleDefinitionId = "${local.role_definition_prefix}/${local.role_storage_blob_contributor}"
       principalId      = azapi_resource.agent_identity.output.properties.principalId
+      principalType    = "ServicePrincipal"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# ACR Pull - Project identity needs to pull container images for hosted agents
+# -----------------------------------------------------------------------------
+
+resource "azapi_resource" "role_project_acr_pull" {
+  type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
+  name      = uuidv5("url", "${var.container_registry_id}-${azapi_resource.foundry_project.output.identity.principalId}-acrpull")
+  parent_id = var.container_registry_id
+
+  body = {
+    properties = {
+      roleDefinitionId = "${local.role_definition_prefix}/${local.role_acr_pull}"
+      principalId      = azapi_resource.foundry_project.output.identity.principalId
       principalType    = "ServicePrincipal"
     }
   }

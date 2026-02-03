@@ -118,14 +118,15 @@ module "ml" {
 module "foundry" {
   source = "./modules/foundry"
 
-  resource_group_name     = azapi_resource.resource_group.name
-  resource_group_id       = azapi_resource.resource_group.id
-  location                = var.location
-  name_prefix             = local.name_prefix
-  storage_name_prefix     = local.storage_name_prefix
-  application_insights_id = azapi_resource.app_insights.id
-  container_registry_id   = module.acr.container_registry_id
-  tags                    = local.common_tags
+  resource_group_name             = azapi_resource.resource_group.name
+  resource_group_id               = azapi_resource.resource_group.id
+  location                        = var.location
+  name_prefix                     = local.name_prefix
+  storage_name_prefix             = local.storage_name_prefix
+  application_insights_id         = azapi_resource.app_insights.id
+  container_registry_id           = module.acr.container_registry_id
+  container_registry_login_server = module.acr.login_server
+  tags                            = local.common_tags
 
   # Dependencies for RBAC
   sql_server_id           = module.sql.sql_server_id

@@ -1,5 +1,14 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
+# =============================================================================
+# Main Infrastructure: Medical Appointment No-Show Predictor
+# =============================================================================
+# This handles SQL, ML Workspace, and Static Web App via Terraform
+# 
+# The hosted agent is deployed separately via infra-agent/ (Bicep)
+# See agent/README.md for agent deployment instructions
+# =============================================================================
+
 name: no-show-predictor
 metadata:
     template: custom
@@ -9,29 +18,8 @@ services:
         host: staticwebapp
         language: ""
         dist: ./frontend/src/NoShowPredictor.Web/bin/Release/net10.0/publish/wwwroot
-    noshow-predictor:
-        project: src/noshow-predictor
-        host: azure.ai.agent
-        language: docker
-        docker:
-            remoteBuild: true
-        config:
-            container:
-                resources:
-                    cpu: "1"
-                    memory: 2Gi
-                scale:
-                    maxReplicas: 3
-                    minReplicas: 1
-            deployments:
-                - model:
-                    format: OpenAI
-                    name: gpt-4o
-                    version: "2024-11-20"
-                  name: gpt-4o
-                  sku:
-                    capacity: 30
-                    name: Standard
+    # Agent service is now handled by separate azd project in infra-agent/
+    # This avoids the limitation of mixing Terraform and Bicep providers
 infra:
     provider: terraform
     path: infra
@@ -46,26 +34,17 @@ hooks:
             $stateFile = ".azure/$env:AZURE_ENV_NAME/infra/terraform.tfstate"
             $outputs = terraform output -json -state="$stateFile" | ConvertFrom-Json
 
-            # Set environment variables for services (use quotes for values with special chars)
+            # Set environment variables for services
             azd env set AZURE_SQL_SERVER "$($outputs.sql_server_fqdn.value)"
             azd env set AZURE_SQL_DATABASE "$($outputs.sql_database_name.value)"
             azd env set AZURE_ML_ENDPOINT_URL "$($outputs.ml_endpoint_url.value)"
-            azd env set AZURE_FOUNDRY_ENDPOINT "$($outputs.foundry_endpoint.value)"
-            azd env set AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING "$($outputs.application_insights_connection_string.value)"
-            azd env set AZURE_ACR_LOGIN_SERVER "$($outputs.acr_login_server.value)"
-            azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "$($outputs.acr_login_server.value)"
             azd env set AZURE_STATIC_WEB_APP_URL "$($outputs.static_web_app_url.value)"
 
             Write-Host "Environment variables configured:"
             Write-Host "  SQL_SERVER: $($outputs.sql_server_fqdn.value)"
             Write-Host "  SQL_DATABASE: $($outputs.sql_database_name.value)"
             Write-Host "  ML_ENDPOINT_URL: $($outputs.ml_endpoint_url.value)"
-            Write-Host "  AI_FOUNDRY_ENDPOINT: $($outputs.foundry_endpoint.value)"
-    predeploy:
-        name: predeploy
-        shell: pwsh
-        run: |
-            Write-Host "Preparing for deployment..."
+            Write-Host "  STATIC_WEB_APP_URL: $($outputs.static_web_app_url.value)"
     prepackage:
         name: prepackage
         shell: pwsh

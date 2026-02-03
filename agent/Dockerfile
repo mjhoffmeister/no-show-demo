@@ -19,8 +19,8 @@ RUN dotnet publish "NoShowPredictor.Agent.csproj" -c Release -o /app/publish /p:
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview AS runtime
 WORKDIR /app
 
-# Create non-root user for security
-RUN adduser --disabled-password --gecos "" appuser
+# Create non-root user for security (using useradd for compatibility with Mariner/CBL)
+RUN groupadd -r appgroup && useradd -r -g appgroup -s /usr/sbin/nologin appuser
 USER appuser
 
 # Copy published application

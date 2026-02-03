@@ -1,23 +1,55 @@
 # No-Show Predictor Agent
 
-.NET 10 hosted agent for the Medical Appointment No-Show Predictor.
+Azure AI Foundry Hosted Agent for predicting medical appointment no-shows.
 
-## Overview
+## Architecture
 
-This agent provides a conversational interface for scheduling coordinators to:
-- Query upcoming appointments and their no-show risk levels
-- Get actionable recommendations for reducing no-shows
-- Explore patient appointment history and risk factors
+This agent uses the **Azure AI AgentServer SDK** (`Azure.AI.AgentServer.AgentFramework`) 
+to host an AI agent that:
+
+1. Queries patient and appointment data from Azure SQL
+2. Calls the ML prediction endpoint for no-show probability
+3. Provides recommendations to reduce no-shows
 
 ## Technology Stack
 
 | Component | Technology |
 |-----------|------------|
-| Framework | Microsoft.Agents.AI 1.0.0-preview.260127.1 |
+| Framework | Azure.AI.AgentServer.AgentFramework 1.0.0-beta.6 |
 | Runtime | Azure AI Foundry Hosted Agents |
 | Language | .NET 10 (C#) |
 | Data Access | Microsoft.Data.SqlClient |
 | Auth | DefaultAzureCredential (Managed Identity) |
+
+## Infrastructure
+
+The agent uses a **hybrid infrastructure** approach:
+
+| Component | Tool | Location |
+|-----------|------|----------|
+| SQL, ML, SWA | Terraform | `infra/` |
+| Foundry, ACR, CapHost | Bicep | `infra-agent/` |
+
+### Step 1: Deploy Base Infrastructure
+
+From the repo root:
+
+```bash
+cd c:\source\no-show-demo
+azd auth login
+azd up  # Deploys SQL, ML, SWA via Terraform
+```
+
+### Step 2: Deploy Hosted Agent
+
+From the infra-agent folder:
+
+```bash
+cd c:\source\no-show-demo\infra-agent
+azd auth login
+azd init  # Select existing environment or create new
+azd up    # Deploys Foundry, ACR, CapHost + agent via Bicep
+```
 
 ## Project Structure
 
@@ -25,24 +57,26 @@ This agent provides a conversational interface for scheduling coordinators to:
 agent/
 ├── src/
 │   └── NoShowPredictor.Agent/    # Main agent project
-│       ├── Program.cs            # Hosting adapter entry point
-│       ├── NoShowAgent.cs        # Agent logic and system prompt
-│       ├── Tools/                # Agent tools
-│       │   ├── PredictionTool.cs
-│       │   ├── AppointmentTool.cs
-│       │   ├── PatientTool.cs
-│       │   └── RecommendationTool.cs
-│       ├── Services/             # External service clients
-│       │   ├── IMLEndpointClient.cs
-│       │   └── MLEndpointClient.cs
-│       ├── Data/                 # Data access
-│       │   └── AppointmentRepository.cs
-│       └── Models/               # Domain entities
-├── tests/
-│   └── NoShowPredictor.Agent.Tests/
-├── Dockerfile
+│       └── Program.cs            # Hosted agent entry point
+├── Dockerfile                    # Not used - see src/noshow-predictor/
 └── README.md
+src/noshow-predictor/             # Agent deployment package
+├── Dockerfile                    # Container build
+├── agent.yaml                    # Agent manifest for azd
+└── src/NoShowPredictor.Agent/    # Agent code (symlink/copy)
 ```
+
+## Environment Variables
+
+The agent reads these from the Foundry environment:
+
+| Variable | Description |
+|----------|-------------|
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint (auto-set by Foundry) |
+| `AZURE_OPENAI_DEPLOYMENT_NAME` | Model deployment name (default: gpt-4o) |
+| `SQL_SERVER` | Azure SQL server FQDN |
+| `SQL_DATABASE` | Database name |
+| `ML_ENDPOINT_URI` | ML prediction endpoint URL |
 
 ## Local Development
 
@@ -50,39 +84,31 @@ agent/
 
 - .NET 10 SDK
 - Azure CLI (`az login`)
-- Access to Azure AI Foundry project
+- Access to Azure OpenAI
 
-### Build & Run
+### Run Locally
 
 ```bash
-# Build
-dotnet build
+cd agent/src/NoShowPredictor.Agent
 
-# Run locally (requires Azure credentials)
-dotnet run --project src/NoShowPredictor.Agent
+# Set environment variables
+$env:AZURE_OPENAI_ENDPOINT = "https://your-openai.openai.azure.com/"
+$env:AZURE_OPENAI_DEPLOYMENT_NAME = "gpt-4o"
+
+dotnet run
 ```
 
-### Environment Variables
+The agent starts on `http://localhost:8088/` with an OpenAI Responses-compatible API.
 
-| Variable | Description |
-|----------|-------------|
-| `AZURE_AI_PROJECT_CONNECTION_STRING` | AI Foundry project connection |
-| `SQL_CONNECTION_STRING` | Azure SQL Database connection |
-| `ML_ENDPOINT_URL` | ML model inference endpoint |
+### Test Request
 
-## Deployment
+```http
+POST http://localhost:8088/
+Content-Type: application/json
 
-Deployed via `azd up` as a containerized agent in Azure AI Foundry.
-
-```bash
-# From repository root
-azd up
-```
-
-## Testing
-
-```bash
-dotnet test
+{
+  "input": "What is the current date?"
+}
 ```
 
 ## Related Documentation

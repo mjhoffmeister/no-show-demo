@@ -5,6 +5,12 @@
 # Uses AzApi provider per project specification
 # =============================================================================
 
+# NOTE: If deploying fresh and kv-*-aif exists in soft-delete state, uncomment:
+# import {
+#   to = module.foundry.azapi_resource.keyvault_foundry
+#   id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-${local.name_prefix}-001/providers/Microsoft.KeyVault/vaults/kv-${local.name_prefix}-aif"
+# }
+
 # -----------------------------------------------------------------------------
 # Resource Group
 # -----------------------------------------------------------------------------
@@ -14,8 +20,11 @@ resource "azapi_resource" "resource_group" {
   name     = "rg-${local.name_prefix}-001"
   location = var.location
 
-  body = {
-    tags = local.common_tags
+  body = {}
+
+  # Don't update tags - AzApi provider has a bug with resource group tag updates
+  lifecycle {
+    ignore_changes = [body]
   }
 }
 
@@ -76,7 +85,7 @@ module "acr" {
   resource_group_name = azapi_resource.resource_group.name
   resource_group_id   = azapi_resource.resource_group.id
   location            = var.location
-  name_prefix         = local.storage_name_prefix
+  name_prefix         = local.name_prefix
   tags                = local.common_tags
 }
 
@@ -126,11 +135,9 @@ module "foundry" {
   application_insights_id         = azapi_resource.app_insights.id
   container_registry_id           = module.acr.container_registry_id
   container_registry_login_server = module.acr.login_server
+  sql_server_id                   = module.sql.sql_server_id
+  ml_workspace_id                 = module.ml.workspace_id
   tags                            = local.common_tags
-
-  # Dependencies for RBAC
-  sql_server_id           = module.sql.sql_server_id
-  ml_workspace_id         = module.ml.workspace_id
 }
 
 # -----------------------------------------------------------------------------

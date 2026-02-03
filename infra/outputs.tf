@@ -1,6 +1,8 @@
 # =============================================================================
 # Outputs: Medical Appointment No-Show Predictor
 # =============================================================================
+# Exposes all infrastructure endpoints for azd and services
+# =============================================================================
 
 # -----------------------------------------------------------------------------
 # Resource Group
@@ -20,14 +22,43 @@ output "resource_group_id" {
 # Azure Container Registry
 # -----------------------------------------------------------------------------
 
+output "acr_name" {
+  description = "Azure Container Registry name"
+  value       = module.acr.name
+}
+
 output "acr_login_server" {
   description = "Azure Container Registry login server"
   value       = module.acr.login_server
 }
 
-output "acr_name" {
-  description = "Azure Container Registry name"
-  value       = module.acr.name
+# -----------------------------------------------------------------------------
+# Azure AI Foundry
+# -----------------------------------------------------------------------------
+
+output "foundry_account_name" {
+  description = "Azure AI Foundry account name"
+  value       = module.foundry.account_name
+}
+
+output "foundry_project_name" {
+  description = "Azure AI Foundry project name"
+  value       = module.foundry.project_name
+}
+
+output "foundry_project_id" {
+  description = "Azure AI Foundry project resource ID"
+  value       = module.foundry.project_id
+}
+
+output "foundry_endpoint" {
+  description = "Azure AI Foundry endpoint"
+  value       = module.foundry.endpoint
+}
+
+output "agent_managed_identity_id" {
+  description = "Agent managed identity resource ID"
+  value       = module.foundry.agent_managed_identity_id
 }
 
 # -----------------------------------------------------------------------------
@@ -67,35 +98,6 @@ output "ml_workspace_id" {
 output "ml_endpoint_url" {
   description = "Azure ML managed online endpoint URL"
   value       = module.ml.endpoint_url
-}
-
-# -----------------------------------------------------------------------------
-# Azure AI Foundry
-# -----------------------------------------------------------------------------
-
-output "foundry_account_name" {
-  description = "Azure AI Foundry account name"
-  value       = module.foundry.account_name
-}
-
-output "foundry_project_name" {
-  description = "Azure AI Foundry project name"
-  value       = module.foundry.project_name
-}
-
-output "foundry_project_id" {
-  description = "Azure AI Foundry project resource ID (for azd ai agent init)"
-  value       = module.foundry.project_resource_id
-}
-
-output "foundry_endpoint" {
-  description = "Azure AI Foundry endpoint URL"
-  value       = module.foundry.endpoint
-}
-
-output "agent_managed_identity_id" {
-  description = "Managed Identity ID for the agent"
-  value       = module.foundry.agent_managed_identity_id
 }
 
 # -----------------------------------------------------------------------------

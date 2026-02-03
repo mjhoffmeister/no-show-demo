@@ -125,7 +125,7 @@
 
 - [x] T064 [US1] Create agent/agent.yaml azd agent manifest with container config, environment variables, and session-only conversation state (FR-015: no persistent storage of patient identifiers)
 - [x] T065 [US1] Update azure.yaml to include agent service with ACR build
-- [ ] T066 [US1] Test end-to-end: deploy with `azd up`, ask about tomorrow's appointments
+- [x] T066 [US1] Test end-to-end: deploy with `azd up`, ask about tomorrow's appointments
 
 **Checkpoint**: MVP complete - users can ask about high-risk appointments for tomorrow
 

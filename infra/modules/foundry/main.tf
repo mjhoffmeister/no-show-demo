@@ -134,6 +134,11 @@ resource "azapi_resource" "keyvault_foundry" {
   }
 
   response_export_values = ["id"]
+
+  # Workaround: Key Vault may exist from soft-delete recovery + AzApi provider bugs
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -141,7 +146,7 @@ resource "azapi_resource" "keyvault_foundry" {
 # -----------------------------------------------------------------------------
 
 resource "azapi_resource" "foundry_account" {
-  type      = "Microsoft.CognitiveServices/accounts@2025-09-01"
+  type      = "Microsoft.CognitiveServices/accounts@2025-06-01"  # Use same API version as Bicep template
   name      = "aif-${var.name_prefix}-001"
   location  = var.location
   parent_id = var.resource_group_id
@@ -162,13 +167,16 @@ resource "azapi_resource" "foundry_account" {
       publicNetworkAccess    = "Enabled"
       disableLocalAuth       = true
       allowProjectManagement = true
-      apiProperties          = {}
-      restore                = true  # Restore soft-deleted resource
+      networkAcls = {
+        defaultAction       = "Allow"
+        virtualNetworkRules = []
+        ipRules             = []
+      }
     }
     tags = var.tags
   }
 
-  response_export_values = ["properties.endpoint"]
+  response_export_values = ["properties.endpoint", "properties.endpoints"]
 }
 
 # -----------------------------------------------------------------------------
@@ -217,7 +225,7 @@ resource "azapi_resource" "agent_identity" {
 # Capability Host for Hosted Agents (Public Hosting - Foundry manages infra)
 # -----------------------------------------------------------------------------
 # With enablePublicHostingEnvironment=true, Foundry manages ACR/storage
-# No need to bring your own ACR or storage - azd ai agent handles it
+# CRITICAL: Must depend on ACR connection being established first!
 
 resource "azapi_resource" "capability_host" {
   type      = "Microsoft.CognitiveServices/accounts/capabilityHosts@2025-10-01-preview"
@@ -231,7 +239,16 @@ resource "azapi_resource" "capability_host" {
     }
   }
 
-  depends_on = [azapi_resource.foundry_project]
+  # Key learning from Bicep: capability host needs ACR connection to exist first
+  depends_on = [
+    azapi_resource.foundry_project,
+    azapi_resource.acr_connection,
+    azapi_resource.role_project_acr_pull
+  ]
+
+  timeouts {
+    create = "10m"  # Capability host can take 6+ minutes to provision
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -247,9 +264,9 @@ resource "azapi_resource" "acr_connection" {
 
   body = {
     properties = {
-      category     = "ContainerRegistry"
-      target       = var.container_registry_login_server
-      authType     = "ManagedIdentity"
+      category      = "ContainerRegistry"
+      target        = var.container_registry_login_server
+      authType      = "ManagedIdentity"
       isSharedToAll = true
       credentials = {
         clientId   = azapi_resource.foundry_project.output.identity.principalId
@@ -261,7 +278,16 @@ resource "azapi_resource" "acr_connection" {
     }
   }
 
-  depends_on = [azapi_resource.foundry_project]
+  # Must wait for project AND project's ACR pull permission
+  depends_on = [
+    azapi_resource.foundry_project,
+    azapi_resource.role_project_acr_pull
+  ]
+
+  # Workaround: AzApi provider has "Missing Resource Identity After Update" bug
+  lifecycle {
+    ignore_changes = [body]
+  }
 }
 
 # -----------------------------------------------------------------------------

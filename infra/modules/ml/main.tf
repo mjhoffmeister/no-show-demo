@@ -31,7 +31,9 @@ variable "application_insights_id" {
 }
 
 variable "container_registry_id" {
-  type = string
+  type        = string
+  default     = null
+  description = "Optional ACR ID. If null, ML workspace will not be linked to an ACR."
 }
 
 variable "tags" {
@@ -140,16 +142,17 @@ resource "azapi_resource" "ml_workspace" {
   }
 
   body = {
-    properties = {
+    properties = merge({
       applicationInsights      = var.application_insights_id
       keyVault                 = azapi_resource.keyvault_ml.id
       storageAccount           = azapi_resource.storage_ml.id
-      containerRegistry        = var.container_registry_id
       publicNetworkAccess      = "Enabled"
       friendlyName             = "mlw-${var.name_prefix}-001"
       systemDatastoresAuthMode = "identity"  # Use managed identity, not keys
       v1LegacyMode             = false       # Use RBAC for Key Vault, not access policies
-    }
+    }, var.container_registry_id != null ? {
+      containerRegistry = var.container_registry_id
+    } : {})
     tags = var.tags
   }
 

@@ -1,34 +1,34 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
+
 # Agent manifest for Azure AI Foundry Hosted Agent
-# Deploy with: azd ai agent init -m ./agent/agent.yaml && azd up
+# Deploy with: azd up (from infra-agent folder)
 
+kind: hosted
 name: noshow-predictor
-displayName: "No-Show Predictor Agent"
-description: >
-  An intelligent agent for healthcare appointment management that predicts patient no-shows
-  using machine learning. The agent can query patient and appointment data, call the ML
-  prediction endpoint, and provide recommendations to reduce no-shows.
+description: |
+    An intelligent agent for healthcare appointment management that predicts patient no-shows 
+    using machine learning. The agent can query patient and appointment data, call the ML 
+    prediction endpoint, and provide recommendations to reduce no-shows.
 metadata:
-  authors:
-    - Healthcare AI Team
-  tags:
-    - Azure AI AgentServer
-    - Healthcare
-    - Machine Learning
-    - Predictions
-
-template:
-  kind: hosted
-  name: noshow-predictor
-  protocols:
+    authors:
+        - Matt Hoffmeister
+    tags:
+        - Azure AI AgentServer
+        - Healthcare
+        - Machine Learning
+        - Predictions
+protocols:
     - protocol: responses
       version: v1
-  environment_variables:
-    # Azure AI Foundry endpoint (auto-set by azd ai agent)
+environment_variables:
+    # Azure AI Foundry endpoint (auto-set by azd)
     - name: AZURE_AI_PROJECT_ENDPOINT
       value: ${AZURE_AI_PROJECT_ENDPOINT}
-    # Model deployment name
-    - name: AI_FOUNDRY_DEPLOYMENT
-      value: "{{chat}}"
+    # OpenAI endpoint and deployment  
+    - name: AZURE_OPENAI_ENDPOINT
+      value: ${AZURE_OPENAI_ENDPOINT}
+    - name: AZURE_OPENAI_DEPLOYMENT_NAME
+      value: gpt-4o
     # Azure SQL Database connection
     - name: SQL_SERVER
       value: ${AZURE_SQL_SERVER}
@@ -39,9 +39,4 @@ template:
       value: ${AZURE_ML_ENDPOINT_URI}
     # Application Insights (optional)
     - name: APPLICATIONINSIGHTS_CONNECTION_STRING
-      value: ${AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING}
-
-resources:
-  - name: chat
-    kind: model
-    id: gpt-4o
+      value: ${APPLICATIONINSIGHTS_CONNECTION_STRING}

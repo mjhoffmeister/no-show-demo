@@ -2,6 +2,7 @@
 @using MudBlazor
 @using System.Text.RegularExpressions
 @using Microsoft.AspNetCore.Components.Rendering
+@using NoShowPredictor.Web.Components
 
 <div class="message-text">
     @if (Message.IsUser)
@@ -41,117 +42,179 @@
     private static readonly Regex TableRowPattern = new(@"^\|(.+)\|$", RegexOptions.Compiled);
     private static readonly Regex TableSeparatorPattern = new(@"^\|[\s\-:]+\|$", RegexOptions.Compiled);
     private static readonly Regex DayOfWeekPattern = new(@"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    // More flexible pattern: allows optional whitespace/newlines around JSON content
+    private static readonly Regex ForecastCardPattern = new(@"```forecastcard\s*([\s\S]*?)```", RegexOptions.Compiled);
 
     private RenderFragment RenderFormattedContent(string content)
     {
         return builder =>
         {
-            var lines = content.Split('\n');
-            var lineIndex = 0;
-            var isInTable = false;
-            var tableLines = new List<string>();
-
-            foreach (var line in lines)
+            var index = 0;
+            
+            // First, check for forecast card blocks and process them
+            var forecastMatch = ForecastCardPattern.Match(content);
+            Console.WriteLine($"[ChatMessage] Checking for forecastcard. Content length: {content.Length}, Match found: {forecastMatch.Success}");
+            
+            if (forecastMatch.Success)
             {
-                var trimmedLine = line.TrimStart();
+                Console.WriteLine($"[ChatMessage] Forecastcard match at index {forecastMatch.Index}, captured length: {forecastMatch.Groups[1].Value.Length}");
                 
-                // Detect markdown table
-                if (TableRowPattern.IsMatch(trimmedLine))
+                // Render any content before the forecast card
+                var beforeCard = content.Substring(0, forecastMatch.Index).Trim();
+                if (!string.IsNullOrEmpty(beforeCard))
                 {
-                    if (!isInTable)
-                    {
-                        isInTable = true;
-                        tableLines = new List<string>();
-                    }
-                    tableLines.Add(trimmedLine);
-                    continue;
-                }
-                else if (isInTable && tableLines.Count > 0)
-                {
-                    // End of table - render it
-                    RenderTable(builder, ref lineIndex, tableLines);
-                    isInTable = false;
-                    tableLines.Clear();
+                    RenderTextContent(builder, ref index, beforeCard);
                 }
                 
-                // Check for section headers (## or ###)
-                if (trimmedLine.StartsWith("###"))
+                // Parse and render the forecast card
+                var jsonContent = forecastMatch.Groups[1].Value.Trim();
+                Console.WriteLine($"[ChatMessage] Attempting to parse JSON: {jsonContent.Substring(0, Math.Min(100, jsonContent.Length))}...");
+                
+                var cardData = ForecastCard.TryParse(jsonContent);
+                if (cardData != null)
                 {
-                    builder.OpenElement(lineIndex++, "h4");
-                    builder.AddAttribute(lineIndex++, "class", "mt-3 mb-2");
-                    builder.AddContent(lineIndex++, trimmedLine.TrimStart('#').Trim());
-                    builder.CloseElement();
-                }
-                else if (trimmedLine.StartsWith("##"))
-                {
-                    builder.OpenElement(lineIndex++, "h3");
-                    builder.AddAttribute(lineIndex++, "class", "mt-4 mb-2");
-                    builder.AddContent(lineIndex++, trimmedLine.TrimStart('#').Trim());
-                    builder.CloseElement();
-                }
-                // Check for bullet points with recommendations
-                else if (trimmedLine.StartsWith("- ") || trimmedLine.StartsWith("* "))
-                {
-                    builder.OpenElement(lineIndex++, "div");
-                    builder.AddAttribute(lineIndex++, "class", "recommendation-item d-flex align-center gap-2 my-2");
-                    
-                    // Add appropriate icon based on content
-                    if (ActionTypePattern.IsMatch(trimmedLine))
-                    {
-                        var iconName = GetActionIcon(trimmedLine);
-                        var iconColor = GetPriorityColor(trimmedLine);
-                        builder.OpenComponent<MudIcon>(lineIndex++);
-                        builder.AddAttribute(lineIndex++, "Icon", iconName);
-                        builder.AddAttribute(lineIndex++, "Color", iconColor);
-                        builder.AddAttribute(lineIndex++, "Size", Size.Small);
-                        builder.CloseComponent();
-                    }
-                    
-                    // Add priority chip if priority is mentioned
-                    if (PriorityPattern.IsMatch(trimmedLine))
-                    {
-                        var priority = ExtractPriority(trimmedLine);
-                        builder.OpenComponent<MudChip<string>>(lineIndex++);
-                        builder.AddAttribute(lineIndex++, "Size", Size.Small);
-                        builder.AddAttribute(lineIndex++, "Color", GetChipColor(priority));
-                        builder.AddAttribute(lineIndex++, "Text", priority);
-                        builder.CloseComponent();
-                    }
-                    
-                    // Render the content with clickable patient names
-                    builder.OpenElement(lineIndex++, "span");
-                    RenderLineWithPatientLinks(builder, ref lineIndex, trimmedLine.Substring(2));
-                    builder.CloseElement();
-                    
-                    builder.CloseElement();
-                }
-                // Check for weekly forecast-style data (day: number pattern)
-                else if (DayOfWeekPattern.IsMatch(trimmedLine) && trimmedLine.Contains(":"))
-                {
-                    RenderForecastDay(builder, ref lineIndex, trimmedLine);
-                }
-                // Regular paragraph line
-                else if (!string.IsNullOrWhiteSpace(line))
-                {
-                    builder.OpenElement(lineIndex++, "p");
-                    builder.AddAttribute(lineIndex++, "class", "my-1");
-                    RenderLineWithPatientLinks(builder, ref lineIndex, line);
-                    builder.CloseElement();
+                    Console.WriteLine($"[ChatMessage] Successfully parsed ForecastCard with {cardData.Days?.Count ?? 0} days");
+                    builder.OpenComponent<ForecastCard>(index++);
+                    builder.AddAttribute(index++, "Data", cardData);
+                    builder.CloseComponent();
                 }
                 else
                 {
-                    // Empty line - add spacing
-                    builder.OpenElement(lineIndex++, "br");
+                    Console.WriteLine("[ChatMessage] Failed to parse ForecastCard JSON, rendering as code block");
+                    // Fallback: render as code block if parsing fails
+                    builder.OpenElement(index++, "pre");
+                    builder.AddAttribute(index++, "class", "code-block");
+                    builder.AddContent(index++, jsonContent);
                     builder.CloseElement();
                 }
+                
+                // Render any content after the forecast card
+                var afterCard = content.Substring(forecastMatch.Index + forecastMatch.Length).Trim();
+                if (!string.IsNullOrEmpty(afterCard))
+                {
+                    RenderTextContent(builder, ref index, afterCard);
+                }
             }
-
-            // Handle case where content ends with table
-            if (isInTable && tableLines.Count > 0)
+            else
             {
-                RenderTable(builder, ref lineIndex, tableLines);
+                // Check if the content contains forecastcard at all (debug)
+                if (content.Contains("forecastcard", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"[ChatMessage] Content contains 'forecastcard' but regex didn't match. First 500 chars: {content.Substring(0, Math.Min(500, content.Length))}");
+                }
+                
+                // No forecast card - render normally
+                RenderTextContent(builder, ref index, content);
             }
         };
+    }
+
+    private void RenderTextContent(RenderTreeBuilder builder, ref int lineIndex, string content)
+    {
+        var lines = content.Split('\n');
+        var isInTable = false;
+        var tableLines = new List<string>();
+
+        foreach (var line in lines)
+        {
+            var trimmedLine = line.TrimStart();
+            
+            // Detect markdown table
+            if (TableRowPattern.IsMatch(trimmedLine))
+            {
+                if (!isInTable)
+                {
+                    isInTable = true;
+                    tableLines = new List<string>();
+                }
+                tableLines.Add(trimmedLine);
+                continue;
+            }
+            else if (isInTable && tableLines.Count > 0)
+            {
+                // End of table - render it
+                RenderTable(builder, ref lineIndex, tableLines);
+                isInTable = false;
+                tableLines.Clear();
+            }
+            
+            // Check for section headers (## or ###)
+            if (trimmedLine.StartsWith("###"))
+            {
+                builder.OpenElement(lineIndex++, "h4");
+                builder.AddAttribute(lineIndex++, "class", "mt-3 mb-2");
+                builder.AddContent(lineIndex++, trimmedLine.TrimStart('#').Trim());
+                builder.CloseElement();
+            }
+            else if (trimmedLine.StartsWith("##"))
+            {
+                builder.OpenElement(lineIndex++, "h3");
+                builder.AddAttribute(lineIndex++, "class", "mt-4 mb-2");
+                builder.AddContent(lineIndex++, trimmedLine.TrimStart('#').Trim());
+                builder.CloseElement();
+            }
+            // Check for bullet points with recommendations
+            else if (trimmedLine.StartsWith("- ") || trimmedLine.StartsWith("* "))
+            {
+                builder.OpenElement(lineIndex++, "div");
+                builder.AddAttribute(lineIndex++, "class", "recommendation-item d-flex align-center gap-2 my-2");
+                
+                // Add appropriate icon based on content
+                if (ActionTypePattern.IsMatch(trimmedLine))
+                {
+                    var iconName = GetActionIcon(trimmedLine);
+                    var iconColor = GetPriorityColor(trimmedLine);
+                    builder.OpenComponent<MudIcon>(lineIndex++);
+                    builder.AddAttribute(lineIndex++, "Icon", iconName);
+                    builder.AddAttribute(lineIndex++, "Color", iconColor);
+                    builder.AddAttribute(lineIndex++, "Size", Size.Small);
+                    builder.CloseComponent();
+                }
+                
+                // Add priority chip if priority is mentioned
+                if (PriorityPattern.IsMatch(trimmedLine))
+                {
+                    var priority = ExtractPriority(trimmedLine);
+                    builder.OpenComponent<MudChip<string>>(lineIndex++);
+                    builder.AddAttribute(lineIndex++, "Size", Size.Small);
+                    builder.AddAttribute(lineIndex++, "Color", GetChipColor(priority));
+                    builder.AddAttribute(lineIndex++, "Text", priority);
+                    builder.CloseComponent();
+                }
+                
+                // Render the content with clickable patient names
+                builder.OpenElement(lineIndex++, "span");
+                RenderLineWithPatientLinks(builder, ref lineIndex, trimmedLine.Substring(2));
+                builder.CloseElement();
+                
+                builder.CloseElement();
+            }
+            // Check for weekly forecast-style data (day: number pattern)
+            else if (DayOfWeekPattern.IsMatch(trimmedLine) && trimmedLine.Contains(":"))
+            {
+                RenderForecastDay(builder, ref lineIndex, trimmedLine);
+            }
+            // Regular paragraph line
+            else if (!string.IsNullOrWhiteSpace(line))
+            {
+                builder.OpenElement(lineIndex++, "p");
+                builder.AddAttribute(lineIndex++, "class", "my-1");
+                RenderLineWithPatientLinks(builder, ref lineIndex, line);
+                builder.CloseElement();
+            }
+            else
+            {
+                // Empty line - add spacing
+                builder.OpenElement(lineIndex++, "br");
+                builder.CloseElement();
+            }
+        }
+
+        // Handle case where content ends with table
+        if (isInTable && tableLines.Count > 0)
+        {
+            RenderTable(builder, ref lineIndex, tableLines);
+        }
     }
 
     private void RenderTable(RenderTreeBuilder builder, ref int index, List<string> tableLines)

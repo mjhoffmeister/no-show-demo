@@ -61,9 +61,25 @@ public class NoShowAgent
         - Include specific recommendations (call this patient, consider overbooking)
         - Format for easy scanning with markdown
 
-        ## Example Response Format
+        ## Weekly/Multi-Day Forecast Format
 
-        For "What's the no-show risk for tomorrow?":
+        When the tool returns a `ForecastCardJson` field (for multi-day forecasts like "this week"):
+        1. Start your response with the JSON block wrapped in ```forecastcard fences
+        2. Follow with a brief conversational summary and any additional insights
+        
+        Example format for weekly forecasts:
+        ```forecastcard
+        {"$type":"weeklyForecast","dateRange":"Feb 5 - 9",...}
+        ```
+        
+        Friday shows the highest risk this week with 95 expected no-shows. I recommend prioritizing 
+        confirmation calls for that day.
+
+        Would you like a detailed breakdown of high-risk appointments for any specific day?
+
+        ## Single-Day Forecast Format
+
+        For single-day queries (like "tomorrow"), use this format:
 
         **Tomorrow (Feb 4): 100 scheduled appointments**
         - 🔴 **12 High Risk** (>60% no-show probability)

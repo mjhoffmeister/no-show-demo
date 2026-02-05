@@ -1,0 +1,388 @@
+@using MudBlazor
+@using System.Text.Json
+
+<MudPaper Class="forecast-card pa-4 my-3" Elevation="2">
+    @* Header *@
+    <div class="forecast-header d-flex align-center gap-2 mb-3">
+        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Primary" />
+        <MudText Typo="Typo.h6">Weekly No-Show Forecast: @Data.DateRange</MudText>
+        @if (!string.IsNullOrEmpty(Data.Warning))
+        {
+            <MudTooltip Text="@Data.Warning">
+                <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Warning" Size="Size.Small" />
+            </MudTooltip>
+        }
+    </div>
+
+    @* Summary Stats *@
+    <div class="forecast-summary d-flex gap-4 mb-4">
+        <div class="stat-box">
+            <MudText Typo="Typo.h4" Color="Color.Default">@Data.TotalAppointments</MudText>
+            <MudText Typo="Typo.caption" Class="text-secondary">Appointments</MudText>
+        </div>
+        <div class="stat-box">
+            <MudText Typo="Typo.h4" Class="high-risk-text">@Data.Summary.HighRisk</MudText>
+            <MudText Typo="Typo.caption" Class="text-secondary">High Risk (@Data.Summary.HighRiskPercentage%)</MudText>
+        </div>
+        <div class="stat-box">
+            <MudText Typo="Typo.h4" Class="low-risk-text">@Data.Summary.LowRisk</MudText>
+            <MudText Typo="Typo.caption" Class="text-secondary">Low Risk</MudText>
+        </div>
+        <div class="stat-box">
+            <MudText Typo="Typo.h4" Color="Color.Warning">~@Data.Summary.ExpectedNoShows</MudText>
+            <MudText Typo="Typo.caption" Class="text-secondary">Expected No-Shows</MudText>
+        </div>
+    </div>
+
+    @* Peak Day Alert *@
+    @if (Data.PeakDay != null)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-4" Dense="true" Icon="@Icons.Material.Filled.Warning">
+            <strong>Peak Day:</strong> @Data.PeakDay.DayOfWeek, @Data.PeakDay.Label — 
+            @Data.PeakDay.HighRiskCount high-risk appointments (@Data.PeakDay.HighRiskPercentage% of day)
+        </MudAlert>
+    }
+
+    @* Day-by-Day Chart *@
+    <MudText Typo="Typo.subtitle2" Class="mb-2">Daily Breakdown</MudText>
+    <div class="day-chart mb-4">
+        @foreach (var day in Data.Days)
+        {
+            <div class="day-row @(day.IsPeak ? "peak-day" : "")">
+                <div class="day-label">
+                    @if (day.IsPeak)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Small" Class="mr-1" />
+                    }
+                    <span class="day-name">@day.DayOfWeek.Substring(0, 3)</span>
+                    <span class="day-date">@ExtractDayNumber(day.Label)</span>
+                </div>
+                <div class="day-bar-container">
+                    <div class="day-bar">
+                        <div class="bar-segment high-risk" style="width: @GetBarWidth(day.High, GetMaxTotal())%;"></div>
+                        <div class="bar-segment low-risk" style="width: @GetBarWidth(day.Low, GetMaxTotal())%;"></div>
+                    </div>
+                </div>
+                <div class="day-stats">
+                    <span class="total">@day.Total</span>
+                    <span class="high">@day.High high</span>
+                    <span class="low">@day.Low low</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* Recommendations *@
+    @if (Data.Recommendations.Any())
+    {
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Recommendations</MudText>
+        <div class="recommendations-grid">
+            @foreach (var rec in Data.Recommendations)
+            {
+                <MudPaper Class="@($"recommendation-card pa-3 {GetRecommendationClass(rec.Priority)}")" Elevation="0">
+                    <div class="d-flex align-center gap-2 mb-1">
+                        <MudIcon Icon="@GetRecommendationIcon(rec.Icon)" Color="@GetRecommendationColor(rec.Priority)" Size="Size.Small" />
+                        <MudText Typo="Typo.body2" Class="font-weight-bold">@rec.Action</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2">@rec.Target</MudText>
+                    @if (!string.IsNullOrEmpty(rec.Detail))
+                    {
+                        <MudText Typo="Typo.caption" Class="text-secondary">@rec.Detail</MudText>
+                    }
+                </MudPaper>
+            }
+        </div>
+    }
+
+    @* Source indicator *@
+    <div class="forecast-source mt-3">
+        <MudText Typo="Typo.caption" Class="text-secondary">
+            <MudIcon Icon="@(Data.IsMLBased ? Icons.Material.Filled.Psychology : Icons.Material.Filled.History)" 
+                     Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
+            Source: @Data.Source
+        </MudText>
+    </div>
+</MudPaper>
+
+@code {
+    /// <summary>
+    /// The parsed forecast data to display.
+    /// </summary>
+    [Parameter]
+    public required ForecastCardData Data { get; set; }
+
+    /// <summary>
+    /// Event callback when user wants to drill down into a specific day.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnDayClick { get; set; }
+
+    private int GetMaxTotal() => Data.Days.Max(d => d.Total);
+
+    private double GetBarWidth(int value, int max) => max > 0 ? Math.Round(100.0 * value / max, 1) : 0;
+
+    private string ExtractDayNumber(string label)
+    {
+        // Extract just the day number from "Thu, Feb 5"
+        var parts = label.Split(' ');
+        return parts.Length >= 3 ? parts[2] : label;
+    }
+
+    private string GetRecommendationIcon(string icon) => icon switch
+    {
+        "call" => Icons.Material.Filled.Phone,
+        "overbook" => Icons.Material.Filled.EventRepeat,
+        "reminder" => Icons.Material.Filled.Sms,
+        _ => Icons.Material.Filled.CheckCircle
+    };
+
+    private Color GetRecommendationColor(string priority) => priority switch
+    {
+        "high" => Color.Error,
+        "medium" => Color.Warning,
+        _ => Color.Info
+    };
+
+    private string GetRecommendationClass(string priority) => priority switch
+    {
+        "high" => "rec-high",
+        "medium" => "rec-medium",
+        _ => "rec-low"
+    };
+
+    /// <summary>
+    /// Attempts to parse forecast JSON into structured data.
+    /// </summary>
+    public static ForecastCardData? TryParse(string json)
+    {
+        try
+        {
+            // Clean up the JSON - trim whitespace and handle any edge cases
+            var cleanJson = json.Trim();
+            
+            // Ensure it starts with { and ends with }
+            var startIdx = cleanJson.IndexOf('{');
+            var endIdx = cleanJson.LastIndexOf('}');
+            if (startIdx >= 0 && endIdx > startIdx)
+            {
+                cleanJson = cleanJson.Substring(startIdx, endIdx - startIdx + 1);
+            }
+
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip
+            };
+            return JsonSerializer.Deserialize<ForecastCardData>(cleanJson, options);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ForecastCard parse error: {ex.Message}");
+            Console.WriteLine($"JSON content: {json?.Substring(0, Math.Min(200, json?.Length ?? 0))}...");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// DTO for forecast card data matching the agent's ForecastCard schema.
+    /// </summary>
+    public class ForecastCardData
+    {
+        public string DateRange { get; set; } = string.Empty;
+        public int TotalAppointments { get; set; }
+        public ForecastSummaryData Summary { get; set; } = new();
+        public List<ForecastDayData> Days { get; set; } = [];
+        public PeakDayData? PeakDay { get; set; }
+        public List<RecommendationData> Recommendations { get; set; } = [];
+        public string Source { get; set; } = string.Empty;
+        public bool IsMLBased { get; set; }
+        public string? Warning { get; set; }
+    }
+
+    public class ForecastSummaryData
+    {
+        public int HighRisk { get; set; }
+        public int LowRisk { get; set; }
+        public int ExpectedNoShows { get; set; }
+        public double HighRiskPercentage { get; set; }
+    }
+
+    public class ForecastDayData
+    {
+        public string Date { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string DayOfWeek { get; set; } = string.Empty;
+        public int Total { get; set; }
+        public int High { get; set; }
+        public int Low { get; set; }
+        public double HighRiskPercentage { get; set; }
+        public bool IsPeak { get; set; }
+    }
+
+    public class PeakDayData
+    {
+        public string Date { get; set; } = string.Empty;
+        public string DayOfWeek { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public int HighRiskCount { get; set; }
+        public double HighRiskPercentage { get; set; }
+    }
+
+    public class RecommendationData
+    {
+        public string Priority { get; set; } = "medium";
+        public string Icon { get; set; } = "reminder";
+        public string Action { get; set; } = string.Empty;
+        public string Target { get; set; } = string.Empty;
+        public string? Detail { get; set; }
+    }
+}
+
+<style>
+    .forecast-card {
+        background: var(--mud-palette-surface);
+        border-radius: 12px;
+        max-width: 100%;
+    }
+
+    .forecast-header {
+        border-bottom: 1px solid var(--mud-palette-divider);
+        padding-bottom: 12px;
+    }
+
+    .forecast-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+    }
+
+    .stat-box {
+        text-align: center;
+        min-width: 80px;
+    }
+
+    .high-risk-text {
+        color: #d32f2f;
+    }
+
+    .low-risk-text {
+        color: #388e3c;
+    }
+
+    .day-chart {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .day-row {
+        display: grid;
+        grid-template-columns: 80px 1fr 140px;
+        align-items: center;
+        gap: 12px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        transition: background 0.2s;
+    }
+
+    .day-row:hover {
+        background: var(--mud-palette-action-default-hover);
+    }
+
+    .day-row.peak-day {
+        background: rgba(255, 152, 0, 0.1);
+        border-left: 3px solid #ff9800;
+    }
+
+    .day-label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .day-name {
+        font-weight: 600;
+        width: 32px;
+    }
+
+    .day-date {
+        color: var(--mud-palette-text-secondary);
+        font-size: 0.85em;
+    }
+
+    .day-bar-container {
+        width: 100%;
+    }
+
+    .day-bar {
+        display: flex;
+        height: 20px;
+        border-radius: 4px;
+        overflow: hidden;
+        background: var(--mud-palette-background-gray);
+    }
+
+    .bar-segment {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+
+    .bar-segment.high-risk {
+        background: linear-gradient(90deg, #d32f2f, #f44336);
+    }
+
+    .bar-segment.low-risk {
+        background: linear-gradient(90deg, #388e3c, #4caf50);
+    }
+
+    .day-stats {
+        display: flex;
+        gap: 8px;
+        font-size: 0.85em;
+    }
+
+    .day-stats .total {
+        font-weight: 600;
+        min-width: 32px;
+    }
+
+    .day-stats .high {
+        color: #d32f2f;
+    }
+
+    .day-stats .low {
+        color: #388e3c;
+    }
+
+    .recommendations-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+    }
+
+    .recommendation-card {
+        border-radius: 8px;
+        border: 1px solid var(--mud-palette-divider);
+    }
+
+    .recommendation-card.rec-high {
+        background: rgba(211, 47, 47, 0.08);
+        border-color: rgba(211, 47, 47, 0.3);
+    }
+
+    .recommendation-card.rec-medium {
+        background: rgba(255, 152, 0, 0.08);
+        border-color: rgba(255, 152, 0, 0.3);
+    }
+
+    .recommendation-card.rec-low {
+        background: rgba(25, 118, 210, 0.08);
+        border-color: rgba(25, 118, 210, 0.3);
+    }
+
+    .forecast-source {
+        border-top: 1px solid var(--mud-palette-divider);
+        padding-top: 8px;
+    }
+</style>

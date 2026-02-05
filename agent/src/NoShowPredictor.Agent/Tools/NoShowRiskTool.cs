@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using NoShowPredictor.Agent.Data;
 using NoShowPredictor.Agent.Models;
 using NoShowPredictor.Agent.Services;
@@ -123,6 +124,10 @@ public class NoShowRiskTool
             DailySummaries = dailySummaries,
             // Only include detailed appointments for single-day queries
             HighRiskAppointments = isSummaryMode ? [] : highRisk.Take(20).ToList(),
+            // Generate structured card JSON for multi-day forecasts
+            ForecastCardJson = isSummaryMode 
+                ? GenerateForecastCardJson(parseResult, dailySummaries!, highRisk.Count, lowRisk.Count, appointmentList.Count, source, isMLBased, warning)
+                : null,
             Source = source,
             IsMLBased = isMLBased,
             Warning = warning
@@ -258,6 +263,148 @@ public class NoShowRiskTool
     }
 
     #region Helper Methods
+
+    /// <summary>
+    /// Generates structured JSON for the ForecastCard visualization.
+    /// </summary>
+    private static string GenerateForecastCardJson(
+        DateParseResult parseResult,
+        List<DailySummary> dailySummaries,
+        int totalHighRisk,
+        int totalLowRisk,
+        int totalAppointments,
+        string source,
+        bool isMLBased,
+        string? warning)
+    {
+        // Find peak day
+        var peakDay = dailySummaries.OrderByDescending(d => d.HighRiskCount).FirstOrDefault();
+
+        // Build forecast days with computed percentages
+        var forecastDays = dailySummaries.Select(d =>
+        {
+            var date = DateOnly.Parse(d.Date);
+            return new ForecastDay
+            {
+                Date = d.Date,
+                Label = date.ToString("ddd, MMM d"),
+                DayOfWeek = d.DayOfWeek,
+                Total = d.TotalAppointments,
+                High = d.HighRiskCount,
+                Low = d.LowRiskCount,
+                HighRiskPercentage = d.TotalAppointments > 0 
+                    ? Math.Round(100.0 * d.HighRiskCount / d.TotalAppointments, 1) 
+                    : 0,
+                IsPeak = d.Date == peakDay?.Date
+            };
+        }).ToList();
+
+        // Build recommendations
+        var recommendations = GenerateForecastRecommendations(dailySummaries, totalHighRisk, peakDay);
+
+        // Format date range nicely
+        var startDate = DateOnly.Parse(dailySummaries.First().Date);
+        var endDate = DateOnly.Parse(dailySummaries.Last().Date);
+        var dateRangeDisplay = startDate.Month == endDate.Month
+            ? $"{startDate:MMM d} - {endDate:d}"
+            : $"{startDate:MMM d} - {endDate:MMM d}";
+
+        var card = new ForecastCard
+        {
+            DateRange = dateRangeDisplay,
+            TotalAppointments = totalAppointments,
+            Summary = new ForecastSummary
+            {
+                HighRisk = totalHighRisk,
+                LowRisk = totalLowRisk,
+                ExpectedNoShows = totalHighRisk,
+                HighRiskPercentage = totalAppointments > 0 
+                    ? Math.Round(100.0 * totalHighRisk / totalAppointments, 1) 
+                    : 0
+            },
+            Days = forecastDays,
+            PeakDay = peakDay != null ? new PeakDayInfo
+            {
+                Date = peakDay.Date,
+                DayOfWeek = peakDay.DayOfWeek,
+                Label = DateOnly.Parse(peakDay.Date).ToString("ddd, MMM d"),
+                HighRiskCount = peakDay.HighRiskCount,
+                HighRiskPercentage = peakDay.TotalAppointments > 0
+                    ? Math.Round(100.0 * peakDay.HighRiskCount / peakDay.TotalAppointments, 1)
+                    : 0
+            } : null,
+            Recommendations = recommendations,
+            Source = source,
+            IsMLBased = isMLBased,
+            Warning = warning
+        };
+
+        return JsonSerializer.Serialize(card, new JsonSerializerOptions 
+        { 
+            WriteIndented = false,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+    }
+
+    /// <summary>
+    /// Generates prioritized recommendations based on forecast data.
+    /// </summary>
+    private static List<ForecastRecommendation> GenerateForecastRecommendations(
+        List<DailySummary> dailySummaries,
+        int totalHighRisk,
+        DailySummary? peakDay)
+    {
+        var recommendations = new List<ForecastRecommendation>();
+
+        // Priority calls recommendation
+        if (totalHighRisk > 0)
+        {
+            var emphasis = peakDay != null && peakDay.HighRiskCount > 0
+                ? $"especially {peakDay.DayOfWeek} with {peakDay.HighRiskCount} high-risk"
+                : null;
+
+            recommendations.Add(new ForecastRecommendation
+            {
+                Priority = "high",
+                Icon = "call",
+                Action = "Priority Confirmation Calls",
+                Target = $"{totalHighRisk} high-risk patients",
+                Detail = emphasis
+            });
+        }
+
+        // Overbooking recommendation for peak day
+        if (peakDay != null && peakDay.HighRiskCount >= 5)
+        {
+            var slotsToOverbook = peakDay.HighRiskCount switch
+            {
+                >= 20 => "3-4",
+                >= 10 => "2-3",
+                _ => "1-2"
+            };
+
+            recommendations.Add(new ForecastRecommendation
+            {
+                Priority = "medium",
+                Icon = "overbook",
+                Action = "Overbooking Consideration",
+                Target = $"{peakDay.DayOfWeek} ({DateOnly.Parse(peakDay.Date):MMM d})",
+                Detail = $"~{slotsToOverbook} slots recommended"
+            });
+        }
+
+        // Enhanced reminders for medium-risk
+        recommendations.Add(new ForecastRecommendation
+        {
+            Priority = "low",
+            Icon = "reminder",
+            Action = "Enhanced Reminder Campaigns",
+            Target = "Medium-risk patients",
+            Detail = $"SMS/email reminders across all {dailySummaries.Count} days"
+        });
+
+        return recommendations;
+    }
 
     private static AppointmentWithRisk CreateAppointmentWithRisk(Appointment appt, Prediction pred)
     {
@@ -442,6 +589,8 @@ public record NoShowRiskResult
     public List<DailySummary>? DailySummaries { get; init; }
     /// <summary>Detailed high-risk appointments (single-day only)</summary>
     public List<AppointmentWithRisk> HighRiskAppointments { get; init; } = [];
+    /// <summary>Structured JSON for rich frontend card visualization (multi-day only)</summary>
+    public string? ForecastCardJson { get; init; }
     public string Source { get; init; } = string.Empty;
     public bool IsMLBased { get; init; }
     public string? Warning { get; init; }

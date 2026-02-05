@@ -7,11 +7,12 @@
 ## Overview
 
 This guide walks you through deploying the No-Show Predictor demo from scratch:
-1. Provision Azure infrastructure with Terraform
-2. Generate synthetic data and train the ML model
-3. Deploy the hosted agent to Azure AI Foundry
-4. Deploy the Blazor frontend to Azure Static Web Apps
-5. Test the system end-to-end
+1. Provision Azure infrastructure with `azd` (uses Terraform)
+2. Generate synthetic data and seed the database
+3. Train the ML model with Azure AutoML
+4. Deploy the hosted agent to Azure AI Foundry
+5. Deploy the Blazor frontend to Azure Static Web Apps
+6. Test the system end-to-end
 
 ---
 
@@ -38,8 +39,6 @@ winget install Microsoft.Azd
 # Azure CLI extensions
 az extension add --name ai
 az extension add --name ml
-
-# AZD AI Agent extension (auto-installs with template)
 ```
 
 ### Azure Account Setup
@@ -67,13 +66,13 @@ cd no-show-demo
 # Switch to feature branch
 git checkout 001-no-show-predictor
 
-# Copy environment template
-Copy-Item .env.example .env
+# Initialize azd environment
+azd init
 
-# Edit .env with your values
-# Required:
-#   AZURE_SUBSCRIPTION_ID=<your-subscription-id>
-#   AZURE_LOCATION=northcentralus  # Required for hosted agents
+# Configure environment (when prompted)
+#   Environment name: noshow-dev
+#   Azure Subscription: <select your subscription>
+#   Azure Location: northcentralus  # Required for hosted agents!
 ```
 
 ---
@@ -81,173 +80,95 @@ Copy-Item .env.example .env
 ## Step 2: Provision Infrastructure
 
 ```powershell
-# Navigate to infrastructure directory
-cd infra
-
-# Initialize Terraform
-terraform init
-
-# Preview changes
-terraform plan -out=tfplan
-
-# Apply infrastructure
-terraform apply tfplan
-
-# Save outputs for later steps
-terraform output -json > ../outputs.json
-cd ..
+# Provision all Azure resources
+azd provision
 ```
 
-**Resources Created:**
-- Azure AI Foundry resource with project + GPT-4o deployment
-- Azure ML Workspace
-- Azure SQL Database (Basic tier)
+This runs Terraform and creates:
+- Azure AI Foundry account with project and GPT-4o deployment
+- Azure ML Workspace with managed online endpoint
+- Azure SQL Database (with schema)
 - Azure Container Registry
 - Azure Static Web App
 - Application Insights
-- Storage Account (for ML artifacts)
+- Managed identities with RBAC
 
 **Expected Time**: ~10 minutes
 
+The `postprovision` hook automatically:
+- Sets environment variables for all services
+- Creates SQL database user for the agent managed identity
+
 ---
 
-## Step 3: Generate Synthetic Data
+## Step 3: Generate and Seed Data
 
 ```powershell
-# Navigate to ML directory
-cd ml/src
-
 # Create Python virtual environment
+cd ml
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Generate synthetic data (5000 patients, 100000 appointments, 24 months for seasonality)
-python data/generate_synthetic.py --patients 5000 --appointments 100000 --months 24 --output ../data/
+# Generate synthetic data
+python src/data/generate_synthetic.py
 
-# Upload to Azure Storage
-az storage blob upload-batch `
-    --account-name $(terraform output -raw storage_account_name -state=../../infra/terraform.tfstate) `
-    --destination synthetic-data `
-    --source ../data/ `
-    --auth-mode login
+# Seed Azure SQL Database
+.\infra\scripts\seed-database.ps1
 
-cd ../..
-```
-
-**Output Files:**
-- `data/patients.parquet`
-- `data/appointments.parquet`
-- `data/providers.parquet`
-- `data/departments.parquet`
-- `data/insurance.parquet`
-
----
-
-## Step 3b: Seed Azure SQL Database
-
-```powershell
-# Still in ml/src directory
-# Get SQL connection string from Terraform outputs
-$sqlServer = $(terraform output -raw sql_server_name -state=../../infra/terraform.tfstate)
-
-# Seed database with synthetic data (uses Managed Identity)
-python data/seed_database.py `
-    --server "$sqlServer.database.windows.net" `
-    --database noshow `
-    --data-dir ../data/
-
-# Verify data loaded
-az sql query `
-    --server $sqlServer `
-    --database noshow `
-    --query "SELECT COUNT(*) as patient_count FROM patients; SELECT COUNT(*) as appointment_count FROM appointments;"
+cd ..
 ```
 
 **Verification:**
-- Patients table: ~1,000 records
-- Appointments table: ~15,000 records
-- Providers table: ~50 records
-- Departments table: ~25 records
+```powershell
+# Check record counts
+$tok = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+# Use Azure Data Studio or similar to verify:
+# - Patients: ~1,000 records
+# - Appointments: ~15,000 records
+```
 
 ---
 
 ## Step 4: Train ML Model
 
 ```powershell
-# Navigate to ML directory
-cd ml/src
+cd ml
 
 # Submit AutoML training job
-python training/train_automl.py `
-    --experiment-name noshow-prediction `
-    --compute-target cpu-cluster `
-    --data-version 1
+az ml job create -f src/training/automl_job.yaml --workspace-name <ml-workspace>
 
-# Monitor training (takes ~30 minutes)
-az ml job show --name <job-name> --query "status" -o tsv
+# Monitor training (~30 minutes)
+az ml job show --name <job-name> --query "status"
 
-# Register the best model
-az ml model create `
-    --name noshow-model `
-    --version 1 `
-    --path azureml://jobs/<job-name>/outputs/best_model
-
-# Deploy to managed endpoint
-az ml online-endpoint create --file deployment/endpoint.yaml
-az ml online-deployment create --file deployment/deployment.yaml
+# Deploy best model to managed endpoint
+az ml online-deployment create -f deployment/deployment.yaml
 
 # Test the endpoint
-python evaluation/test_endpoint.py
+python src/evaluation/test_endpoint.py
 
-cd ../..
+cd ..
 ```
 
 **Verification:**
 - ML model registered in Azure ML
-- Online endpoint responding at `https://<endpoint>.northcentralus.inference.ml.azure.com/score`
+- Online endpoint responding at the URL in `azd env get-value AZURE_ML_ENDPOINT_URI`
 
 ---
 
-## Step 5: Build and Deploy Agent
+## Step 5: Deploy Agent
 
 ```powershell
-# Navigate to agent directory
-cd agent
-
-# Build the agent Docker image
-docker build -t noshow-agent:v1 .
-
-# Login to Azure Container Registry
-$acrName = $(terraform output -raw acr_name -state=../../infra/terraform.tfstate)
-az acr login --name $acrName
-
-# Tag and push
-docker tag noshow-agent:v1 "$acrName.azurecr.io/noshow-agent:v1"
-docker push "$acrName.azurecr.io/noshow-agent:v1"
-
-# Initialize hosted agent with azd
-cd ../..
-azd ai agent init -m agent/agent.yaml
-
-# Deploy everything
-azd up
+# Deploy the hosted agent to Azure AI Foundry
+azd deploy agent
 ```
+
+This builds the agent container, pushes to ACR, and deploys to Foundry's hosted agent infrastructure.
 
 **Verification:**
 ```powershell
 # Check agent status
-az cognitiveservices agent show `
-    --account-name <foundry-account> `
-    --project-name <project-name> `
-    --name noshow-predictor-agent
-
-# Test locally first (optional)
-cd agent/src/NoShowPredictor.Agent
-dotnet run
-# In another terminal: curl http://localhost:8088/responses -X POST -d '{"input":{"messages":[{"role":"user","content":"Hello"}]}}'
+azd ai agent show
 ```
 
 ---
@@ -255,19 +176,17 @@ dotnet run
 ## Step 6: Deploy Frontend
 
 ```powershell
-# Navigate to frontend
-cd frontend/src/NoShowPredictor.Web
-
-# Build Blazor WASM
-dotnet publish -c Release -o publish
-
-# Deploy to Static Web App (via azd)
-cd ../../..
+# Deploy to Static Web App (automatically picks up agent endpoint from Step 5)
 azd deploy frontend
 ```
 
+The `prepackage` hook automatically injects `AZURE_AI_AGENT_ENDPOINT` into `appsettings.json` before building.
+
 **Verification:**
-- Frontend accessible at `https://<swa-name>.azurestaticapps.net`
+```powershell
+# Get frontend URL
+azd env get-value AZURE_STATIC_WEB_APP_URL
+```
 
 ---
 
@@ -275,8 +194,9 @@ azd deploy frontend
 
 ### Open the Application
 
-1. Navigate to `https://<swa-name>.azurestaticapps.net`
-2. The chat interface should load with dark/light mode toggle
+1. Get the URL: `azd env get-value AZURE_SWA_URL`
+2. Navigate to the Static Web App URL
+3. The chat interface should load with dark/light mode toggle
 
 ### Test Queries
 
@@ -305,31 +225,33 @@ Try these sample queries:
 
 ```powershell
 # Check agent deployment status
-az cognitiveservices agent show --account-name <account> --project-name <project> --name noshow-predictor-agent
+azd ai agent show
 
 # View agent logs
-curl -N "https://<endpoint>/api/projects/<project>/agents/noshow-predictor-agent/versions/1/containers/default:logstream?kind=console&api-version=2025-11-15-preview" `
-    -H "Authorization: Bearer $(az account get-access-token --resource https://ai.azure.com --query accessToken -o tsv)"
+azd ai agent logs
 ```
 
 ### ML Endpoint Errors
 
 ```powershell
+# Get endpoint name
+$endpoint = azd env get-value AZURE_ML_ENDPOINT_NAME
+
 # Check endpoint status
-az ml online-endpoint show --name noshow-endpoint
+az ml online-endpoint show --name $endpoint
 
 # View deployment logs
-az ml online-deployment get-logs --name noshow-deployment --endpoint noshow-endpoint
+az ml online-deployment get-logs --name noshow-deployment --endpoint $endpoint
 ```
 
 ### Frontend Not Loading
 
 ```powershell
-# Check Static Web App deployment
-az staticwebapp show --name <swa-name>
+# Check Static Web App URL
+azd env get-value AZURE_SWA_URL
 
-# Check for build errors
-az staticwebapp environment show --name <swa-name>
+# Verify agent endpoint is configured
+cat frontend/src/NoShowPredictor.Web/appsettings.json
 ```
 
 ---
@@ -339,10 +261,6 @@ az staticwebapp environment show --name <swa-name>
 ```powershell
 # Remove all Azure resources
 azd down
-
-# Or manually via Terraform
-cd infra
-terraform destroy
 ```
 
 ---
@@ -359,29 +277,24 @@ terraform destroy
 
 ## Configuration Reference
 
-### Environment Variables
+### Environment Variables (set by azd)
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID | Yes |
-| `AZURE_LOCATION` | Azure region (must be `northcentralus` for hosted agents) | Yes |
-| `AZURE_AI_PROJECT_ENDPOINT` | Foundry project endpoint | Auto-configured |
-| `MODEL_DEPLOYMENT_NAME` | GPT model deployment name | Auto-configured |
-| `ML_ENDPOINT_URL` | ML inference endpoint | Auto-configured |
+| Variable | Description |
+|----------|-------------|
+| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
+| `AZURE_LOCATION` | Azure region (must be `northcentralus` for hosted agents) |
+| `AZURE_AI_PROJECT_ENDPOINT` | Foundry project endpoint |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint |
+| `AZURE_ML_ENDPOINT_URI` | ML inference scoring endpoint |
+| `AZURE_SQL_SERVER` | SQL Server hostname |
 
 ### Agent Configuration (agent.yaml)
 
 ```yaml
 name: noshow-predictor-agent
-description: Medical appointment no-show predictor with recommendations
-container:
-  image: ${ACR_NAME}.azurecr.io/noshow-agent:v1
-  cpu: "1"
-  memory: "2Gi"
-environment:
-  AZURE_AI_PROJECT_ENDPOINT: ${FOUNDRY_ENDPOINT}
-  MODEL_DEPLOYMENT_NAME: gpt-4o
-  ML_ENDPOINT_URL: ${ML_ENDPOINT_URL}
-tools:
-  - type: code_interpreter
+description: Medical appointment no-show predictor with scheduling recommendations
+host:
+  type: azure_ai_agent
 ```
+
+Tools are implemented as C# methods in the agent code, not as separate Foundry resources.

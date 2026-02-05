@@ -39,6 +39,12 @@ variable "container_registry_login_server" {
   description = "ACR login server URL for the connection"
 }
 
+variable "application_insights_connection_string" {
+  type        = string
+  sensitive   = true
+  description = "Application Insights connection string for monitoring"
+}
+
 variable "tags" {
   type = map(string)
 }
@@ -205,23 +211,6 @@ resource "azapi_resource" "foundry_project" {
 }
 
 # -----------------------------------------------------------------------------
-# Managed Identity for Agent
-# -----------------------------------------------------------------------------
-
-resource "azapi_resource" "agent_identity" {
-  type      = "Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31"
-  name      = "id-${var.name_prefix}-agent-001"
-  location  = var.location
-  parent_id = var.resource_group_id
-
-  body = {
-    tags = var.tags
-  }
-
-  response_export_values = ["properties.principalId", "properties.clientId"]
-}
-
-# -----------------------------------------------------------------------------
 # Capability Host for Hosted Agents (Public Hosting - Foundry manages infra)
 # -----------------------------------------------------------------------------
 # With enablePublicHostingEnvironment=true, Foundry manages ACR/storage
@@ -291,6 +280,43 @@ resource "azapi_resource" "acr_connection" {
 }
 
 # -----------------------------------------------------------------------------
+# Application Insights Connection to Foundry Project (for monitoring hosted agents)
+# -----------------------------------------------------------------------------
+# This connection allows the hosted agent to send telemetry to App Insights
+# enabling visibility into tool call failures and agent behavior
+
+resource "azapi_resource" "appinsights_connection" {
+  type      = "Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview"
+  name      = "appi-connection"
+  parent_id = azapi_resource.foundry_project.id
+
+  body = {
+    properties = {
+      category      = "AppInsights"
+      target        = var.application_insights_id
+      authType      = "ApiKey"
+      isSharedToAll = true
+      credentials = {
+        key = var.application_insights_connection_string
+      }
+      metadata = {
+        ApiType    = "Azure"
+        ResourceId = var.application_insights_id
+      }
+    }
+  }
+
+  depends_on = [
+    azapi_resource.foundry_project
+  ]
+
+  # Workaround: AzApi provider has "Missing Resource Identity After Update" bug
+  lifecycle {
+    ignore_changes = [body]
+  }
+}
+
+# -----------------------------------------------------------------------------
 # Outputs
 # -----------------------------------------------------------------------------
 
@@ -319,14 +345,13 @@ output "endpoint" {
   value = azapi_resource.foundry_account.output.properties.endpoint
 }
 
-output "agent_managed_identity_id" {
-  value = azapi_resource.agent_identity.id
+# Hosted agents use the project's system-assigned managed identity
+output "project_identity_principal_id" {
+  description = "Project identity principal ID (used by hosted agents)"
+  value       = azapi_resource.foundry_project.output.identity.principalId
 }
 
-output "agent_managed_identity_principal_id" {
-  value = azapi_resource.agent_identity.output.properties.principalId
-}
-
-output "agent_managed_identity_client_id" {
-  value = azapi_resource.agent_identity.output.properties.clientId
+output "appinsights_connection_name" {
+  description = "App Insights connection name in the AI Foundry project"
+  value       = azapi_resource.appinsights_connection.name
 }

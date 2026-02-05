@@ -1,9 +1,10 @@
 # =============================================================================
-# RBAC Role Assignments for AI Foundry Agent
+# RBAC Role Assignments for AI Foundry Hosted Agent
 # =============================================================================
-# Grants the agent managed identity access to required Azure services
-# Following least-privilege principle per constitution
-# Uses AzApi provider per project specification
+# Hosted agents run with the Foundry PROJECT's system-assigned managed identity.
+# Grants the project identity access to required Azure services.
+# Following least-privilege principle per constitution.
+# Uses AzApi provider per project specification.
 # =============================================================================
 
 # Built-in role definition IDs (using full subscription path to match Azure API response)
@@ -17,19 +18,24 @@ locals {
   role_acr_pull                   = "7f951dda-4ed3-4680-a7ca-43fe172d538d"  # AcrPull
 }
 
+# The project's system-assigned identity is what hosted agents use
+locals {
+  project_principal_id = azapi_resource.foundry_project.output.identity.principalId
+}
+
 # -----------------------------------------------------------------------------
-# Cognitive Services User - Access to AI Foundry
+# Cognitive Services User - Access to AI Foundry models
 # -----------------------------------------------------------------------------
 
-resource "azapi_resource" "role_agent_cognitive_services" {
+resource "azapi_resource" "role_project_cognitive_services" {
   type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
-  name      = uuidv5("url", "${azapi_resource.foundry_account.id}-${azapi_resource.agent_identity.output.properties.principalId}-cognitive")
+  name      = uuidv5("url", "${azapi_resource.foundry_account.id}-${local.project_principal_id}-cognitive")
   parent_id = azapi_resource.foundry_account.id
 
   body = {
     properties = {
       roleDefinitionId = "${local.role_definition_prefix}/${local.role_cognitive_services_user}"
-      principalId      = azapi_resource.agent_identity.output.properties.principalId
+      principalId      = local.project_principal_id
       principalType    = "ServicePrincipal"
     }
   }
@@ -39,15 +45,15 @@ resource "azapi_resource" "role_agent_cognitive_services" {
 # Azure ML Data Scientist - Access to ML Workspace and Endpoints
 # -----------------------------------------------------------------------------
 
-resource "azapi_resource" "role_agent_ml_data_scientist" {
+resource "azapi_resource" "role_project_ml_data_scientist" {
   type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
-  name      = uuidv5("url", "${var.ml_workspace_id}-${azapi_resource.agent_identity.output.properties.principalId}-mldata")
+  name      = uuidv5("url", "${var.ml_workspace_id}-${local.project_principal_id}-mldata")
   parent_id = var.ml_workspace_id
 
   body = {
     properties = {
       roleDefinitionId = "${local.role_definition_prefix}/${local.role_azureml_data_scientist}"
-      principalId      = azapi_resource.agent_identity.output.properties.principalId
+      principalId      = local.project_principal_id
       principalType    = "ServicePrincipal"
     }
   }
@@ -55,18 +61,18 @@ resource "azapi_resource" "role_agent_ml_data_scientist" {
 
 # -----------------------------------------------------------------------------
 # SQL DB Contributor - Access to Azure SQL Database
-# Note: Additional SQL-level permissions configured via T-SQL
+# Note: Also need T-SQL user creation for database-level permissions
 # -----------------------------------------------------------------------------
 
-resource "azapi_resource" "role_agent_sql_contributor" {
+resource "azapi_resource" "role_project_sql_contributor" {
   type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
-  name      = uuidv5("url", "${var.sql_server_id}-${azapi_resource.agent_identity.output.properties.principalId}-sql")
+  name      = uuidv5("url", "${var.sql_server_id}-${local.project_principal_id}-sql")
   parent_id = var.sql_server_id
 
   body = {
     properties = {
       roleDefinitionId = "${local.role_definition_prefix}/${local.role_sql_db_contributor}"
-      principalId      = azapi_resource.agent_identity.output.properties.principalId
+      principalId      = local.project_principal_id
       principalType    = "ServicePrincipal"
     }
   }
@@ -76,15 +82,15 @@ resource "azapi_resource" "role_agent_sql_contributor" {
 # Key Vault Secrets User - Access to secrets if needed
 # -----------------------------------------------------------------------------
 
-resource "azapi_resource" "role_agent_keyvault_secrets" {
+resource "azapi_resource" "role_project_keyvault_secrets" {
   type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
-  name      = uuidv5("url", "${azapi_resource.keyvault_foundry.id}-${azapi_resource.agent_identity.output.properties.principalId}-kv")
+  name      = uuidv5("url", "${azapi_resource.keyvault_foundry.id}-${local.project_principal_id}-kv")
   parent_id = azapi_resource.keyvault_foundry.id
 
   body = {
     properties = {
       roleDefinitionId = "${local.role_definition_prefix}/${local.role_keyvault_secrets_user}"
-      principalId      = azapi_resource.agent_identity.output.properties.principalId
+      principalId      = local.project_principal_id
       principalType    = "ServicePrincipal"
     }
   }
@@ -94,15 +100,15 @@ resource "azapi_resource" "role_agent_keyvault_secrets" {
 # Storage Blob Data Contributor - Access to storage for ML artifacts
 # -----------------------------------------------------------------------------
 
-resource "azapi_resource" "role_agent_storage_blob" {
+resource "azapi_resource" "role_project_storage_blob" {
   type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
-  name      = uuidv5("url", "${azapi_resource.storage_foundry.id}-${azapi_resource.agent_identity.output.properties.principalId}-storage")
+  name      = uuidv5("url", "${azapi_resource.storage_foundry.id}-${local.project_principal_id}-storage")
   parent_id = azapi_resource.storage_foundry.id
 
   body = {
     properties = {
       roleDefinitionId = "${local.role_definition_prefix}/${local.role_storage_blob_contributor}"
-      principalId      = azapi_resource.agent_identity.output.properties.principalId
+      principalId      = local.project_principal_id
       principalType    = "ServicePrincipal"
     }
   }
@@ -114,13 +120,13 @@ resource "azapi_resource" "role_agent_storage_blob" {
 
 resource "azapi_resource" "role_project_acr_pull" {
   type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
-  name      = uuidv5("url", "${var.container_registry_id}-${azapi_resource.foundry_project.output.identity.principalId}-acrpull")
+  name      = uuidv5("url", "${var.container_registry_id}-${local.project_principal_id}-acrpull")
   parent_id = var.container_registry_id
 
   body = {
     properties = {
       roleDefinitionId = "${local.role_definition_prefix}/${local.role_acr_pull}"
-      principalId      = azapi_resource.foundry_project.output.identity.principalId
+      principalId      = local.project_principal_id
       principalType    = "ServicePrincipal"
     }
   }

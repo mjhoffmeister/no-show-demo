@@ -1,2 +1,8 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NoShowPredictor.Agent/NoShowPredictor.Agent.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NoShowPredictor.Agent.Tests/NoShowPredictor.Agent.Tests.csproj" />
+  </Folder>
 </Solution>

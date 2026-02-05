@@ -139,17 +139,17 @@
 
 ### Agent Implementation
 
-- [ ] T067 [US2] Create agent/src/NoShowPredictor.Agent/Services/RecommendationService.cs with GenerateRecommendations logic
-- [ ] T068 [US2] Add recommendation rules: High risk + morning → ConfirmationCall, High risk + provider history → Overbook
-- [ ] T069 [US2] Create agent/src/NoShowPredictor.Agent/Tools/RecommendationTool.cs with GetRecommendations method
-- [ ] T070 [US2] Update NoShowAgent.cs to register RecommendationTool
-- [ ] T071 [US2] Add provider-level aggregation to AppointmentTool for overbooking analysis
-- [ ] T072 [US2] Add patient-specific recommendation lookup for "What should I do about [patient] appointment?"
+- [x] T067 [US2] Create agent/src/NoShowPredictor.Agent/Services/RecommendationService.cs with GenerateRecommendations logic
+- [x] T068 [US2] Add recommendation rules: High risk + morning → ConfirmationCall, High risk + provider history → Overbook
+- [x] T069 [US2] Create agent/src/NoShowPredictor.Agent/Tools/RecommendationTool.cs with GetRecommendations method
+- [x] T070 [US2] Update NoShowAgent.cs to register RecommendationTool
+- [x] T071 [US2] Add provider-level aggregation to AppointmentTool for overbooking analysis
+- [x] T072 [US2] Add patient-specific recommendation lookup for "What should I do about [patient] appointment?"
 
 ### Frontend Enhancement
 
-- [ ] T073 [US2] Add recommendation styling in ChatMessage.razor (priority badges, action icons)
-- [ ] T074 [US2] Add clickable patient names in chat to drill down (prepares for US4)
+- [x] T073 [US2] Add recommendation styling in ChatMessage.razor (priority badges, action icons)
+- [x] T074 [US2] Add clickable patient names in chat to drill down (prepares for US4)
 
 **Checkpoint**: System provides actionable scheduling recommendations
 
@@ -163,14 +163,14 @@
 
 ### Agent Implementation
 
-- [ ] T075 [US3] Add GetWeeklyForecast method to AppointmentTool returning 7-day aggregation
-- [ ] T076 [US3] Create aggregation logic: total appointments, predicted no-shows, percentage per day
-- [ ] T077 [US3] Add anomaly detection for days with significantly higher predicted rates
-- [ ] T078 [US3] Add contributing factor explanation for high-risk days (e.g., "Monday after holiday")
+- [x] T075 [US3] Add GetWeeklyForecast method to AppointmentTool returning 7-day aggregation
+- [x] T076 [US3] Create aggregation logic: total appointments, predicted no-shows, percentage per day
+- [x] T077 [US3] Add anomaly detection for days with significantly higher predicted rates
+- [x] T078 [US3] Add contributing factor explanation for high-risk days (e.g., "Monday after holiday")
 
 ### Frontend Enhancement
 
-- [ ] T079 [US3] Add simple table/list formatting for weekly data in ChatMessage.razor
+- [x] T079 [US3] Add simple table/list formatting for weekly data in ChatMessage.razor
 
 **Checkpoint**: Weekly forecast with daily breakdown available
 
@@ -184,11 +184,11 @@
 
 ### Agent Implementation
 
-- [ ] T080 [US4] Create agent/src/NoShowPredictor.Agent/Tools/PatientTool.cs with GetPatientHistory method
-- [ ] T081 [US4] Add historical_no_show_rate and historical_no_show_count calculation
-- [ ] T082 [US4] Add risk factor explanation (insurance type, lead time patterns, day preferences)
-- [ ] T083 [US4] Update NoShowAgent.cs to register PatientTool
-- [ ] T084 [US4] Handle "new patient" case with limited history explanation
+- [x] T080 [US4] Create agent/src/NoShowPredictor.Agent/Tools/PatientTool.cs with GetPatientHistory method
+- [x] T081 [US4] Add historical_no_show_rate and historical_no_show_count calculation
+- [x] T082 [US4] Add risk factor explanation (insurance type, lead time patterns, day preferences)
+- [x] T083 [US4] Update NoShowAgent.cs to register PatientTool
+- [x] T084 [US4] Handle "new patient" case with limited history explanation
 
 **Checkpoint**: Patient history drill-down complete
 
@@ -198,17 +198,17 @@
 
 **Purpose**: Error handling, edge cases, documentation, deployment validation
 
-- [ ] T085 [P] Add graceful degradation when ML endpoint unavailable in PredictionTool.cs
-- [ ] T086 [P] Add data quality warnings for appointments with missing demographics in AppointmentTool.cs
-- [ ] T087 [P] Add date range validation (warn for predictions >2 weeks out) in AppointmentTool.cs
-- [ ] T088 [P] Add ambiguous date clarification in agent responses
-- [ ] T089 Create frontend/src/NoShowPredictor.Web/Components/ThemeToggle.razor for dark/light mode
-- [ ] T090 Add ThemeToggle to MainLayout.razor header
-- [ ] T091 [P] Add agent/tests/NoShowPredictor.Agent.Tests/Tools/AppointmentToolTests.cs
-- [ ] T092 [P] Add agent/tests/NoShowPredictor.Agent.Tests/Tools/PredictionToolTests.cs
-- [ ] T093 [P] Add agent/tests/NoShowPredictor.Agent.Tests/Services/MLEndpointClientTests.cs
-- [ ] T094 Run specs/001-no-show-predictor/quickstart.md end-to-end validation
-- [ ] T095 Update root README.md with project overview and quickstart link
+- [x] T085 [P] Add graceful degradation when ML endpoint unavailable in PredictionTool.cs
+- [x] T086 [P] Add data quality warnings for appointments with missing demographics in AppointmentTool.cs
+- [x] T087 [P] Add date range validation (warn for predictions >2 weeks out) in AppointmentTool.cs
+- [x] T088 [P] Add ambiguous date clarification in agent responses
+- [x] T089 Create frontend/src/NoShowPredictor.Web/Components/ThemeToggle.razor for dark/light mode
+- [x] T090 Add ThemeToggle to MainLayout.razor header
+- [x] T091 [P] Add agent/tests/NoShowPredictor.Agent.Tests/Tools/AppointmentToolTests.cs
+- [x] T092 [P] Add agent/tests/NoShowPredictor.Agent.Tests/Tools/PredictionToolTests.cs
+- [x] T093 [P] Add agent/tests/NoShowPredictor.Agent.Tests/Services/MLEndpointClientTests.cs
+- [x] T094 Run specs/001-no-show-predictor/quickstart.md end-to-end validation
+- [x] T095 Update root README.md with project overview and quickstart link
 
 ---
 

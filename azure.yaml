@@ -1,14 +1,5 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
-# =============================================================================
-# Main Infrastructure: Medical Appointment No-Show Predictor
-# =============================================================================
-# This handles SQL, ML Workspace, and Static Web App via Terraform
-# 
-# The hosted agent is deployed separately via infra-agent/ (Bicep)
-# See agent/README.md for agent deployment instructions
-# =============================================================================
-
 name: no-show-predictor
 metadata:
     template: custom
@@ -18,12 +9,41 @@ services:
         host: staticwebapp
         language: ""
         dist: ./frontend/src/NoShowPredictor.Web/bin/Release/net10.0/publish/wwwroot
-    # Agent service is now handled by separate azd project in infra-agent/
-    # This avoids the limitation of mixing Terraform and Bicep providers
+    noshow-predictor:
+        project: agent
+        host: azure.ai.agent
+        language: docker
+        docker:
+            remoteBuild: true
+        config:
+            container:
+                resources:
+                    cpu: "1"
+                    memory: 2Gi
+                scale:
+                    maxReplicas: 3
+                    minReplicas: 1
+            deployments:
+                - model:
+                    format: OpenAI
+                    name: gpt-4o
+                    version: "2024-11-20"
+                  name: gpt-4o
+                  sku:
+                    capacity: 30
+                    name: Standard
 infra:
     provider: terraform
     path: infra
 hooks:
+    postdeploy:
+        name: postdeploy
+        shell: pwsh
+        run: |
+            Write-Host "Deployment complete!"
+            Write-Host ""
+            Write-Host "Application URLs:"
+            Write-Host "  Frontend: $env:AZURE_STATIC_WEB_APP_URL"
     postprovision:
         name: postprovision
         shell: pwsh
@@ -37,18 +57,82 @@ hooks:
             # Set environment variables for services
             azd env set AZURE_SQL_SERVER "$($outputs.sql_server_fqdn.value)"
             azd env set AZURE_SQL_DATABASE "$($outputs.sql_database_name.value)"
-            azd env set AZURE_ML_ENDPOINT_URL "$($outputs.ml_endpoint_url.value)"
+            azd env set AZURE_ML_ENDPOINT_URI "$($outputs.ml_endpoint_url.value)"
             azd env set AZURE_STATIC_WEB_APP_URL "$($outputs.static_web_app_url.value)"
+            azd env set AZURE_OPENAI_ENDPOINT "$($outputs.foundry_endpoint.value)"
+            $endpoint = $outputs.foundry_endpoint.value.TrimEnd('/')
+            $project = $outputs.foundry_project_name.value
+            # Agent endpoint should be the project endpoint without agent name suffix
+            # azd deploy will append /agents/{name}/versions automatically
+            $projectEndpoint = "$endpoint/api/projects/$project"
+            azd env set AZURE_AI_PROJECT_ENDPOINT "$projectEndpoint"
+            azd env set AZURE_AI_AGENT_ENDPOINT "$projectEndpoint"
+            azd env set APPLICATIONINSIGHTS_CONNECTION_STRING "$($outputs.application_insights_connection_string.value)"
+            azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "$($outputs.acr_login_server.value)"
+            azd env set AZURE_AD_CLIENT_ID "$($outputs.aad_app_client_id.value)"
+            azd env set AZURE_AD_TENANT_ID "$($outputs.aad_tenant_id.value)"
 
             Write-Host "Environment variables configured:"
             Write-Host "  SQL_SERVER: $($outputs.sql_server_fqdn.value)"
             Write-Host "  SQL_DATABASE: $($outputs.sql_database_name.value)"
-            Write-Host "  ML_ENDPOINT_URL: $($outputs.ml_endpoint_url.value)"
+            Write-Host "  ML_ENDPOINT_URI: $($outputs.ml_endpoint_url.value)"
+            Write-Host "  FOUNDRY_ENDPOINT: $($outputs.foundry_endpoint.value)"
             Write-Host "  STATIC_WEB_APP_URL: $($outputs.static_web_app_url.value)"
+            Write-Host "  ACR: $($outputs.acr_login_server.value)"
+
+            # Create SQL database user for project's managed identity (used by hosted agents)
+            # The identity name format is: {account-name}/projects/{project-name}
+            Write-Host ""
+            Write-Host "Creating SQL database user for Foundry project identity..."
+            $accountName = $outputs.foundry_account_name.value
+            $projectName = $outputs.foundry_project_name.value
+            $identityName = "$accountName/projects/$projectName"
+            $sqlServer = $outputs.sql_server_fqdn.value
+            $sqlDatabase = $outputs.sql_database_name.value
+
+            Write-Host "  Identity name: $identityName"
+
+            try {
+                $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+                $conn = New-Object System.Data.SqlClient.SqlConnection
+                $conn.ConnectionString = "Server=$sqlServer;Database=$sqlDatabase;Encrypt=True;"
+                $conn.AccessToken = $token
+                $conn.Open()
+
+                $sql = "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '$identityName') BEGIN CREATE USER [$identityName] FROM EXTERNAL PROVIDER; ALTER ROLE db_datareader ADD MEMBER [$identityName]; END"
+                $cmd = $conn.CreateCommand()
+                $cmd.CommandText = $sql
+                $cmd.ExecuteNonQuery() | Out-Null
+                $conn.Close()
+                Write-Host "  SQL user '$identityName' configured successfully"
+            }
+            catch {
+                Write-Warning "  Could not create SQL user (may already exist or need manual setup): $_"
+            }
     prepackage:
         name: prepackage
         shell: pwsh
         run: |
             Write-Host "Building Blazor WebAssembly frontend..."
+
             dotnet publish frontend/src/NoShowPredictor.Web -c Release
+
+            # Inject agent endpoint into appsettings.json in the publish output (dist)
+            $publishAppsettingsPath = "frontend/src/NoShowPredictor.Web/bin/Release/net10.0/publish/wwwroot/appsettings.json"
+            $agentEndpoint = azd env get-value AZURE_AI_AGENT_ENDPOINT 2>$null
+            $clientId = azd env get-value AZURE_AD_CLIENT_ID 2>$null
+            $tenantId = azd env get-value AZURE_AD_TENANT_ID 2>$null
+            if ($agentEndpoint -and (Test-Path $publishAppsettingsPath)) {
+                Write-Host "Configuring published frontend with agent endpoint: $agentEndpoint"
+                $appsettings = Get-Content $publishAppsettingsPath -Raw | ConvertFrom-Json
+                $appsettings.AgentServerUrl = $agentEndpoint
+                if ($clientId -and $tenantId) {
+                    $appsettings.AzureAd = @{ Authority = "https://login.microsoftonline.com/$tenantId"; ClientId = $clientId }
+                }
+                $appsettings | ConvertTo-Json -Depth 5 | Set-Content -Path $publishAppsettingsPath -Encoding UTF8
+            }
+            else {
+                Write-Warning "AZURE_AI_AGENT_ENDPOINT not set or publish appsettings missing - deploy agent first with: azd deploy agent"
+            }
+
             Write-Host "Frontend build complete"

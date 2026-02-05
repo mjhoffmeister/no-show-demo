@@ -76,6 +76,18 @@ resource "azapi_resource" "app_insights" {
 }
 
 # -----------------------------------------------------------------------------
+# Entra ID: SPA App Registration for Browser Auth
+# -----------------------------------------------------------------------------
+
+data "azuread_client_config" "current" {}
+
+# Microsoft's well-known Azure AI service principal (same across all tenants)
+# Used to request user_impersonation scope for AI Foundry access
+data "azuread_service_principal" "azure_ai" {
+  client_id = "18a66f5f-dbdf-4c17-9dd7-1634712a9cbe"
+}
+
+# -----------------------------------------------------------------------------
 # Module: Azure Container Registry
 # -----------------------------------------------------------------------------
 
@@ -127,17 +139,18 @@ module "ml" {
 module "foundry" {
   source = "./modules/foundry"
 
-  resource_group_name             = azapi_resource.resource_group.name
-  resource_group_id               = azapi_resource.resource_group.id
-  location                        = var.location
-  name_prefix                     = local.name_prefix
-  storage_name_prefix             = local.storage_name_prefix
-  application_insights_id         = azapi_resource.app_insights.id
-  container_registry_id           = module.acr.container_registry_id
-  container_registry_login_server = module.acr.login_server
-  sql_server_id                   = module.sql.sql_server_id
-  ml_workspace_id                 = module.ml.workspace_id
-  tags                            = local.common_tags
+  resource_group_name                    = azapi_resource.resource_group.name
+  resource_group_id                      = azapi_resource.resource_group.id
+  location                               = var.location
+  name_prefix                            = local.name_prefix
+  storage_name_prefix                    = local.storage_name_prefix
+  application_insights_id                = azapi_resource.app_insights.id
+  application_insights_connection_string = azapi_resource.app_insights.output.properties.ConnectionString
+  container_registry_id                  = module.acr.container_registry_id
+  container_registry_login_server        = module.acr.login_server
+  sql_server_id                          = module.sql.sql_server_id
+  ml_workspace_id                        = module.ml.workspace_id
+  tags                                   = local.common_tags
 }
 
 # -----------------------------------------------------------------------------
@@ -152,4 +165,38 @@ module "static_web_app" {
   location            = var.location
   name_prefix         = local.name_prefix
   tags                = local.common_tags
+}
+
+locals {
+  spa_host = replace(module.static_web_app.default_host_name, "https://", "")
+  spa_redirect_uris = [
+    "https://${local.spa_host}/authentication/login-callback",
+    "https://${local.spa_host}/authentication/logout-callback",
+    "http://localhost:5000/authentication/login-callback",
+    "http://localhost:5000/authentication/logout-callback"
+  ]
+}
+
+resource "azuread_application" "spa" {
+  display_name     = "noshow-predictor-spa-${var.environment}"
+  sign_in_audience = "AzureADMyOrg"
+  owners           = [data.azuread_client_config.current.object_id]
+
+  single_page_application {
+    redirect_uris = local.spa_redirect_uris
+  }
+
+  required_resource_access {
+    resource_app_id = data.azuread_service_principal.azure_ai.application_id
+
+    resource_access {
+      id   = data.azuread_service_principal.azure_ai.oauth2_permission_scopes[0].id
+      type = "Scope"
+    }
+  }
+}
+
+resource "azuread_service_principal" "spa" {
+  client_id = azuread_application.spa.client_id
+  owners    = [data.azuread_client_config.current.object_id]
 }

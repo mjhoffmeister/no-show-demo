@@ -26,16 +26,12 @@ USER appuser
 # Copy published application
 COPY --from=publish /app/publish .
 
-# Expose port
-EXPOSE 8080
+# Expose port (Foundry hosted agents use 8088)
+EXPOSE 8088
 
 # Set environment variables
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:8088
 ENV ASPNETCORE_ENVIRONMENT=Production
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl --fail http://localhost:8080/health || exit 1
 
 # Entry point
 ENTRYPOINT ["dotnet", "NoShowPredictor.Agent.dll"]

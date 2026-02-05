@@ -8,6 +8,15 @@
 -- -----------------------------------------------------------------------------
 -- Table: Patients
 -- -----------------------------------------------------------------------------
+IF OBJECT_ID('dbo.vw_AppointmentsWithMetrics', 'V') IS NOT NULL DROP VIEW dbo.vw_AppointmentsWithMetrics;
+IF OBJECT_ID('dbo.Predictions', 'U') IS NOT NULL DROP TABLE dbo.Predictions;
+IF OBJECT_ID('dbo.Appointments', 'U') IS NOT NULL DROP TABLE dbo.Appointments;
+IF OBJECT_ID('dbo.Insurance', 'U') IS NOT NULL DROP TABLE dbo.Insurance;
+IF OBJECT_ID('dbo.Patients', 'U') IS NOT NULL DROP TABLE dbo.Patients;
+IF OBJECT_ID('dbo.Providers', 'U') IS NOT NULL DROP TABLE dbo.Providers;
+IF OBJECT_ID('dbo.Departments', 'U') IS NOT NULL DROP TABLE dbo.Departments;
+GO
+
 CREATE TABLE dbo.Patients (
     patientid               INT             NOT NULL PRIMARY KEY,
     enterpriseid            INT             NOT NULL UNIQUE,
@@ -17,10 +26,13 @@ CREATE TABLE dbo.Patients (
     patient_email           NVARCHAR(255)   NULL,
     patient_zip_code        NVARCHAR(5)     NULL CHECK (LEN(patient_zip_code) = 5 OR patient_zip_code IS NULL),
     portal_enterpriseid     BIGINT          NULL,
-    portal_last_login       DATETIME2       NULL
+    portal_last_login       DATETIME2       NULL,
+    historical_no_show_count INT            NULL DEFAULT 0,
+    historical_no_show_rate  DECIMAL(5,4)   NULL DEFAULT 0.0
 );
 
 CREATE INDEX IX_Patients_EnterpriseId ON dbo.Patients(enterpriseid);
+GO
 
 -- -----------------------------------------------------------------------------
 -- Table: Providers
@@ -40,6 +52,7 @@ CREATE TABLE dbo.Providers (
     billableyn                      NVARCHAR(1)     NULL CHECK (billableyn IN ('Y', 'N') OR billableyn IS NULL),
     patientfacingname               NVARCHAR(200)   NULL
 );
+GO
 
 -- -----------------------------------------------------------------------------
 -- Table: Departments
@@ -59,17 +72,22 @@ CREATE TABLE dbo.Departments (
     division                NVARCHAR(100)   NULL,
     business_unit           NVARCHAR(50)    NULL
 );
+GO
 
 -- -----------------------------------------------------------------------------
 -- Table: Insurance
 -- -----------------------------------------------------------------------------
 CREATE TABLE dbo.Insurance (
     primarypatientinsuranceid               INT             NOT NULL PRIMARY KEY,
+    patientid                               INT             NOT NULL,
     sipg1                                   NVARCHAR(100)   NULL,
     sipg2                                   NVARCHAR(100)   NULL,
     insurance_plan_1_company_description    NVARCHAR(200)   NULL,
-    insurance_group_id                      NVARCHAR(50)    NULL
+    insurance_group_id                      NVARCHAR(50)    NULL,
+    
+    CONSTRAINT FK_Insurance_Patients FOREIGN KEY (patientid) REFERENCES dbo.Patients(patientid)
 );
+GO
 
 -- -----------------------------------------------------------------------------
 -- Table: Appointments
@@ -126,6 +144,7 @@ CREATE INDEX IX_Appointments_Patient ON dbo.Appointments(patientid);
 CREATE INDEX IX_Appointments_Provider_Date ON dbo.Appointments(providerid, appointmentdate);
 CREATE INDEX IX_Appointments_Department ON dbo.Appointments(departmentid, appointmentdate);
 CREATE INDEX IX_Appointments_Status ON dbo.Appointments(appointmentstatus);
+GO
 
 -- -----------------------------------------------------------------------------
 -- Table: Predictions (populated at runtime by ML endpoint)
@@ -144,6 +163,7 @@ CREATE TABLE dbo.Predictions (
 
 CREATE INDEX IX_Predictions_Appointment ON dbo.Predictions(appointmentid);
 CREATE INDEX IX_Predictions_Probability ON dbo.Predictions(no_show_probability DESC);
+GO
 
 -- -----------------------------------------------------------------------------
 -- View: Appointments with computed columns

@@ -1,7 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
-
-# Agent manifest for Azure AI Foundry Hosted Agent
-# Deploy with: azd up (from infra-agent folder)
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/HostedAgent.yaml
 
 kind: hosted
 name: noshow-predictor
@@ -21,22 +18,15 @@ protocols:
     - protocol: responses
       version: v1
 environment_variables:
-    # Azure AI Foundry endpoint (auto-set by azd)
     - name: AZURE_AI_PROJECT_ENDPOINT
       value: ${AZURE_AI_PROJECT_ENDPOINT}
-    # OpenAI endpoint and deployment  
     - name: AZURE_OPENAI_ENDPOINT
       value: ${AZURE_OPENAI_ENDPOINT}
     - name: AZURE_OPENAI_DEPLOYMENT_NAME
       value: gpt-4o
-    # Azure SQL Database connection
-    - name: SQL_SERVER
-      value: ${AZURE_SQL_SERVER}
-    - name: SQL_DATABASE
-      value: ${AZURE_SQL_DATABASE}
-    # Azure ML endpoint for predictions
+    - name: SQL_CONNECTION_STRING
+      value: "Server=${AZURE_SQL_SERVER};Database=${AZURE_SQL_DATABASE};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;"
     - name: ML_ENDPOINT_URI
       value: ${AZURE_ML_ENDPOINT_URI}
-    # Application Insights (optional)
     - name: APPLICATIONINSIGHTS_CONNECTION_STRING
       value: ${APPLICATIONINSIGHTS_CONNECTION_STRING}

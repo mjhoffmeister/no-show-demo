@@ -1,4 +1,10 @@
 {
+  "routes": [
+    { "route": "/authentication/*", "rewrite": "/index.html" },
+    { "route": "/chat", "rewrite": "/index.html" },
+    { "route": "/chat/*", "rewrite": "/index.html" },
+    { "route": "/", "rewrite": "/index.html" }
+  ],
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": ["/_framework/*", "/css/*", "/*.js", "/*.json", "/*.ico"]

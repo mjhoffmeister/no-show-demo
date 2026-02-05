@@ -1,0 +1,10 @@
+{
+  "input_data": {
+    "columns": ["patient_age_bucket", "patient_gender", "patient_zip_code", "patient_race_ethnicity", "portal_engaged", "historical_no_show_rate", "historical_no_show_count", "sipg2", "lead_time_days", "appointmenttypename", "virtual_flag", "new_patient_flag", "day_of_week", "hour_of_day", "appointmentduration", "webschedulableyn", "provider_specialty", "providertype", "departmentspecialty", "placeofservicetype", "market"],
+    "data": [
+      ["40-64", "F", "53715", "Unknown", true, 0.15, 2, "Commercial", 7, "E&M EST PCP 3", "Non-Virtual", "EST PATIENT", 2, 10, 30, 1, "Family Medicine", "Physician", "Family Medicine", "Office", "Madison"],
+      ["18-39", "M", "53705", "Unknown", false, 0.45, 8, "Medicaid", 21, "E&M NEW ADT", "Non-Virtual", "NEW PATIENT", 0, 8, 45, 0, "Internal Medicine", "Physician", "Internal Medicine", "Office", "Madison"]
+    ]
+  },
+  "params": {"predict_proba": true}
+}

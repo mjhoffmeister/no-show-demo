@@ -1,5 +1,11 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using Azure.AI.Projects;
+using Azure.AI.Projects.OpenAI;
+using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
+using OpenAI.Responses;
+
+#pragma warning disable OPENAI001
 
 namespace NoShowPredictor.Web.Services;
 
@@ -43,15 +49,33 @@ public interface IAgentApiClient
 }
 
 /// <summary>
-/// HTTP client implementation for Agent API.
+/// Agent API client using Azure.AI.Projects SDK.
 /// </summary>
 public sealed class AgentApiClient : IAgentApiClient
 {
     private readonly HttpClient _httpClient;
+    private readonly IAccessTokenProvider _tokenProvider;
+    private readonly string _projectEndpoint;
+    private const string AgentName = "noshow-predictor";
 
-    public AgentApiClient(HttpClient httpClient)
+    public AgentApiClient(HttpClient httpClient, IAccessTokenProvider tokenProvider, AgentApiOptions options)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _tokenProvider = tokenProvider ?? throw new ArgumentNullException(nameof(tokenProvider));
+        
+        // Extract project endpoint from full agent URL if needed
+        // AgentServerUrl might be: https://...services.ai.azure.com/api/projects/{project}/agents/{agent}
+        // We need just: https://...services.ai.azure.com/api/projects/{project}
+        var fullEndpoint = options?.ProjectEndpoint ?? throw new ArgumentNullException(nameof(options));
+        var agentsSuffix = $"/agents/{AgentName}";
+        if (fullEndpoint.EndsWith(agentsSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            _projectEndpoint = fullEndpoint[..^agentsSuffix.Length];
+        }
+        else
+        {
+            _projectEndpoint = fullEndpoint;
+        }
     }
 
     public async Task<AppointmentListResponse> GetAppointmentsAsync(
@@ -114,11 +138,28 @@ public sealed class AgentApiClient : IAgentApiClient
 
     public async Task<ChatResponse> SendChatMessageAsync(ChatRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync("api/chat", request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ChatResponse>(cancellationToken)
-            ?? throw new InvalidOperationException("Failed to parse chat response");
+        // Use Azure.AI.Projects SDK with MSAL token credential
+        var credential = new MsalTokenCredential(_tokenProvider, ["https://ai.azure.com/.default"]);
+        var projectClient = new AIProjectClient(new Uri(_projectEndpoint), credential);
+
+        // Get the agent
+        var agentResult = await projectClient.Agents.GetAgentAsync(AgentName, cancellationToken);
+        var agentRecord = agentResult.Value;
+        
+        // Get response client configured for this agent
+        var responseClient = projectClient.OpenAI.GetProjectResponsesClientForAgent(agentRecord);
+
+        // Send message and get response
+        var response = await responseClient.CreateResponseAsync(request.Message, cancellationToken: cancellationToken);
+
+        return new ChatResponse
+        {
+            ConversationId = response.Value.Id ?? Guid.NewGuid().ToString(),
+            Response = response.Value.GetOutputText() ?? "No response received"
+        };
     }
+
+    // Agent Server Framework request/response DTOs - kept for reference but no longer used with SDK
 
     public async Task<IReadOnlyList<ChatMessage>> GetChatHistoryAsync(string conversationId, CancellationToken cancellationToken = default)
     {
@@ -130,14 +171,25 @@ public sealed class AgentApiClient : IAgentApiClient
     {
         try
         {
-            var response = await _httpClient.GetAsync("health", cancellationToken);
-            return response.IsSuccessStatusCode;
+            // Use SDK to check if we can get the agent
+            var credential = new MsalTokenCredential(_tokenProvider, ["https://ai.azure.com/.default"]);
+            var projectClient = new AIProjectClient(new Uri(_projectEndpoint), credential);
+            var agent = await projectClient.Agents.GetAgentAsync(AgentName, cancellationToken);
+            return agent != null;
         }
         catch
         {
             return false;
         }
     }
+}
+
+/// <summary>
+/// Configuration options for Agent API client.
+/// </summary>
+public sealed class AgentApiOptions
+{
+    public required string ProjectEndpoint { get; init; }
 }
 
 #region DTOs
@@ -161,7 +213,6 @@ public record AppointmentDto
     public required string PatientGender { get; init; }
     public required string ProviderName { get; init; }
     public required string DepartmentName { get; init; }
-    public double? NoShowProbability { get; init; }
     public string? RiskLevel { get; init; }
 }
 
@@ -185,7 +236,6 @@ public sealed record PredictionDto
 {
     public required Guid PredictionId { get; init; }
     public required int AppointmentId { get; init; }
-    public required double NoShowProbability { get; init; }
     public required string RiskLevel { get; init; }
     public required IReadOnlyList<RiskFactorDto> RiskFactors { get; init; }
     public required string ModelVersion { get; init; }

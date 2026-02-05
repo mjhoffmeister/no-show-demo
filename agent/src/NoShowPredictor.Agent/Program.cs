@@ -1,48 +1,54 @@
+// Suppress experimental API warning for GetResponsesClient
+#pragma warning disable OPENAI001
+
 using Azure.AI.AgentServer.AgentFramework.Extensions;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using NoShowPredictor.Agent;
 
-// Get configuration from environment variables
-var openAiEndpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT")
-    ?? throw new InvalidOperationException("AZURE_OPENAI_ENDPOINT is not set.");
-var deploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT_NAME") ?? "gpt-4o";
+// Get configuration from environment
+string openAiEndpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT")
+    ?? throw new InvalidOperationException("AZURE_OPENAI_ENDPOINT is required.");
+string deploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT_NAME")
+    ?? "gpt-4o";
+string sqlConnectionString = Environment.GetEnvironmentVariable("SQL_CONNECTION_STRING")
+    ?? "Server=sql-noshow-dev-ncus-001.database.windows.net;Database=sqldb-noshow;Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;";
+string mlEndpointUri = Environment.GetEnvironmentVariable("ML_ENDPOINT_URI")
+    ?? "https://noshow-predictor.northcentralus.inference.ml.azure.com";
 
-var credential = new DefaultAzureCredential();
+Console.WriteLine($"Deployment: {deploymentName}");
+Console.WriteLine($"OpenAI Endpoint: {openAiEndpoint}");
+Console.WriteLine($"SQL Connection: {sqlConnectionString}");
+Console.WriteLine($"ML Endpoint: {mlEndpointUri}");
 
-// Create chat client
-var chatClient = new AzureOpenAIClient(new Uri(openAiEndpoint), credential)
+// Create the NoShowAgent with tools
+NoShowAgent noShowAgent = NoShowAgent.Create(sqlConnectionString, mlEndpointUri);
+List<AITool> tools = noShowAgent.GetTools().Cast<AITool>().ToList();
+
+Console.WriteLine($"Loaded {tools.Count} tools for NoShowAgent:");
+foreach (AITool tool in tools)
+{
+    Console.WriteLine($"  - {tool.Name}: {tool.Description?.Substring(0, Math.Min(60, tool.Description?.Length ?? 0))}...");
+}
+
+// Create an IChatClient from Azure OpenAI
+IChatClient chatClient = new AzureOpenAIClient(
+    new Uri(openAiEndpoint),
+    new DefaultAzureCredential())
     .GetChatClient(deploymentName)
-    .AsIChatClient()
-    .AsBuilder()
-    .UseOpenTelemetry(sourceName: "NoShowAgent", configure: cfg => cfg.EnableSensitiveData = true)
-    .Build();
+    .AsIChatClient();
 
-// Create the agent with instructions
-var agent = new ChatClientAgent(
-    chatClient,
+// Create the AI agent using the ChatClient
+AIAgent agent = chatClient.CreateAIAgent(
     name: "NoShowPredictor",
-    instructions: """
-        You are a medical appointment no-show prediction assistant. You help healthcare staff 
-        identify patients at risk of missing their appointments and suggest appropriate interventions.
+    instructions: NoShowAgent.SystemPrompt,
+    description: "Healthcare appointment no-show predictor agent",
+    tools: tools);
 
-        When asked about no-show predictions or appointment risks:
-        1. Query the appointments database to get relevant appointment data
-        2. Use the ML prediction endpoint to calculate no-show probabilities
-        3. Provide clear recommendations based on risk levels
+Console.WriteLine("NoShowPredictor Agent starting with Responses API...");
 
-        Risk levels and recommended actions:
-        - High risk (>70%): Recommend phone call reminder and backup scheduling
-        - Medium risk (40-70%): Recommend SMS reminder and follow-up
-        - Low risk (<40%): Standard reminder is sufficient
+// RunAIAgentAsync hosts the agent with /responses endpoint on port 8088
+await agent.RunAIAgentAsync(telemetrySourceName: "NoShowPredictor");
 
-        Always be professional and HIPAA-compliant in your responses.
-        Do not share patient identifiable information unnecessarily.
-        """)
-    .AsBuilder()
-    .UseOpenTelemetry(sourceName: "NoShowAgent", configure: cfg => cfg.EnableSensitiveData = true)
-    .Build();
-
-// Run agent
-await agent.RunAIAgentAsync(telemetrySourceName: "NoShowAgent");

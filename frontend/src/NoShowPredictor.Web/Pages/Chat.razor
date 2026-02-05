@@ -1,95 +1,151 @@
 @page "/chat"
-@page "/"
+@attribute [Authorize]
 @using NoShowPredictor.Web.Models
 @using NoShowPredictor.Web.Services
 @using NoShowPredictor.Web.Components
+@using NoShowPredictor.Web.Layout
 @inject IAgentApiClient AgentClient
+@inject IJSRuntime JS
 
-<PageTitle>No-Show Predictor - Chat</PageTitle>
+<PageTitle>No-Show Predictor</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="pa-4">
-    <MudPaper Elevation="2" Class="chat-container">
-        @* Header *@
-        <MudAppBar Elevation="0" Color="Color.Primary" Dense="true" Class="chat-header">
-            <MudIcon Icon="@Icons.Material.Filled.SmartToy" Class="mr-2" />
-            <MudText Typo="Typo.h6">No-Show Predictor Assistant</MudText>
-            <MudSpacer />
-            <MudTooltip Text="Clear conversation">
-                <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep" 
-                               Color="Color.Inherit" 
-                               OnClick="ClearConversation"
-                               Disabled="@(!_messages.Any())" />
-            </MudTooltip>
-        </MudAppBar>
+<div class="chat-page">
+    @* Title bar with actions *@
+    <div class="title-bar">
+        <MudTooltip Text="New chat">
+            <MudIconButton Icon="@Icons.Material.Filled.Add" 
+                           Color="Color.Inherit" 
+                           OnClick="ClearConversation"
+                           Disabled="@(!_messages.Any())" />
+        </MudTooltip>
+        <div class="title-center">
+            <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Small" Class="title-icon" />
+            <MudText Typo="Typo.subtitle1" Class="title-text">No-Show Predictor</MudText>
+        </div>
+        <MudTooltip Text="@(Layout?.IsDarkMode == true ? "Light mode" : "Dark mode")">
+            <MudIconButton Icon="@(Layout?.IsDarkMode == true ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit"
+                           OnClick="ToggleTheme" />
+        </MudTooltip>
+    </div>
 
-        @* Messages area *@
-        <div class="messages-container" @ref="_messagesContainer">
-            @if (!_messages.Any())
-            {
-                <div class="welcome-message">
-                    <MudIcon Icon="@Icons.Material.Filled.WavingHand" Size="Size.Large" Color="Color.Primary" />
-                    <MudText Typo="Typo.h5" Class="mt-4">Welcome!</MudText>
-                    <MudText Typo="Typo.body1" Class="mud-text-secondary mt-2">
-                        I'm your scheduling assistant. I can help you identify patients at risk of missing appointments.
-                    </MudText>
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-4">
-                        Try asking me:
-                    </MudText>
-                    <div class="suggestion-chips mt-2">
-                        <MudChip T="string" Size="Size.Small" OnClick="@(() => SendSuggestion("Which patients are at risk of missing their appointments tomorrow?"))">
-                            High-risk appointments tomorrow
-                        </MudChip>
-                        <MudChip T="string" Size="Size.Small" OnClick="@(() => SendSuggestion("What scheduling actions should I take for tomorrow?"))">
-                            Scheduling recommendations
-                        </MudChip>
-                        <MudChip T="string" Size="Size.Small" OnClick="@(() => SendSuggestion("What does the no-show forecast look like for this week?"))">
-                            Weekly forecast
-                        </MudChip>
+    @* Messages area *@
+    <div class="messages-area" @ref="_messagesContainer">
+        @if (!_messages.Any())
+        {
+            <div class="welcome-container">
+                <MudText Typo="Typo.h4" Class="welcome-title">No-Show Predictor</MudText>
+                <div class="suggestions-grid">
+                    <div class="suggestion-card" @onclick="@(() => SendSuggestion("Which patients are at risk of missing their appointments tomorrow?"))">
+                        <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Class="suggestion-icon" />
+                        <span>High-risk appointments tomorrow</span>
+                    </div>
+                    <div class="suggestion-card" @onclick="@(() => SendSuggestion("What scheduling actions should I take for tomorrow?"))">
+                        <MudIcon Icon="@Icons.Material.Filled.EventNote" Size="Size.Small" Class="suggestion-icon" />
+                        <span>Scheduling recommendations</span>
+                    </div>
+                    <div class="suggestion-card" @onclick="@(() => SendSuggestion("What does the no-show forecast look like for this week?"))">
+                        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" Class="suggestion-icon" />
+                        <span>Weekly no-show forecast</span>
+                    </div>
+                    <div class="suggestion-card" @onclick="@(() => SendSuggestion("Show me patients with the highest no-show history"))">
+                        <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Class="suggestion-icon" />
+                        <span>Patients with high no-show rates</span>
                     </div>
                 </div>
-            }
-            else
-            {
+            </div>
+        }
+        else
+        {
+            <div class="messages-list">
                 @foreach (var msg in _messages)
                 {
-                    <ChatMessage Message="@msg" OnAppointmentClick="HandleAppointmentClick" />
+                    <div class="message-row @(msg.IsUser ? "user" : "assistant")">
+                        <div class="message-avatar">
+                            @if (msg.IsUser)
+                            {
+                                <MudAvatar Size="Size.Small" Color="Color.Primary">
+                                    <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                                </MudAvatar>
+                            }
+                            else
+                            {
+                                <MudAvatar Size="Size.Small" Color="Color.Success">
+                                    <MudIcon Icon="@Icons.Material.Filled.SmartToy" Size="Size.Small" />
+                                </MudAvatar>
+                            }
+                        </div>
+                        <div class="message-content">
+                            @if (msg.IsLoading)
+                            {
+                                <div class="typing-indicator">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                            }
+                            else if (msg.HasError)
+                            {
+                                <MudAlert Severity="Severity.Error" Dense="true">@msg.Error</MudAlert>
+                            }
+                            else
+                            {
+                                <ChatMessage Message="@msg" 
+                                             OnAppointmentClick="HandleAppointmentClick" 
+                                             OnPatientClick="HandlePatientClick" />
+                            }
+                        </div>
+                    </div>
                 }
-            }
-        </div>
+            </div>
+        }
+    </div>
 
-        @* Input area *@
-        <MudDivider />
-        <div class="input-container pa-3">
+    @* Input area *@
+    <div class="input-area">
+        <div class="input-container">
             <MudTextField @bind-Value="_currentMessage"
-                          Placeholder="Ask about appointments, predictions, or recommendations..."
+                          Placeholder="Message No-Show Predictor..."
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
                           Immediate="true"
                           OnKeyUp="HandleKeyUp"
-                          Adornment="Adornment.End"
-                          AdornmentIcon="@Icons.Material.Filled.Send"
-                          AdornmentColor="Color.Primary"
-                          OnAdornmentClick="SendMessage"
                           Disabled="@_isLoading"
-                          FullWidth="true"
-                          Class="flex-grow-1" />
+                          Lines="1"
+                          Class="chat-input" />
+            <MudIconButton Icon="@Icons.Material.Filled.Send"
+                           Color="Color.Primary"
+                           OnClick="SendMessage"
+                           Disabled="@(_isLoading || string.IsNullOrWhiteSpace(_currentMessage))"
+                           Class="send-btn" />
         </div>
-    </MudPaper>
-</MudContainer>
+        <MudText Typo="Typo.caption" Class="input-disclaimer">
+            AI predictions are for guidance only. Always verify with clinical judgment.
+        </MudText>
+    </div>
+</div>
 
 @code {
+    [CascadingParameter]
+    public MainLayout? Layout { get; set; }
+    
     private readonly List<ChatMessageModel> _messages = new();
-    private string _currentMessage = string.Empty;
     private string? _conversationId;
+    private string _currentMessage = string.Empty;
     private bool _isLoading;
     private ElementReference _messagesContainer;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender && _messages.Any())
+        if (_messages.Any())
         {
             await ScrollToBottom();
         }
+    }
+
+    private void ToggleTheme()
+    {
+        Layout?.ToggleDarkMode();
     }
 
     private async Task SendMessage()
@@ -100,18 +156,16 @@
         var userMessage = _currentMessage.Trim();
         _currentMessage = string.Empty;
 
-        // Add user message
         _messages.Add(new ChatMessageModel
         {
-            Role = ChatRole.User,
+            Role = Models.ChatRole.User,
             Content = userMessage,
             Timestamp = DateTime.Now
         });
 
-        // Add loading indicator for assistant
         var loadingMessage = new ChatMessageModel
         {
-            Role = ChatRole.Assistant,
+            Role = Models.ChatRole.Assistant,
             IsLoading = true,
             Timestamp = DateTime.Now
         };
@@ -123,32 +177,22 @@
 
         try
         {
-            var response = await AgentClient.SendChatMessageAsync(new ChatRequest
+            var request = new ChatRequest
             {
                 Message = userMessage,
                 ConversationId = _conversationId
-            });
+            };
+            var response = await AgentClient.SendChatMessageAsync(request);
+            _conversationId = response.ConversationId;
 
-            // Update with actual response
             loadingMessage.IsLoading = false;
             loadingMessage.Content = response.Response;
             loadingMessage.Timestamp = DateTime.Now;
-            
-            // Update conversation ID for continuity
-            _conversationId = response.ConversationId;
-
-            // Extract referenced appointments
-            if (response.ReferencedAppointments?.Any() == true)
-            {
-                loadingMessage.ReferencedAppointmentIds = response.ReferencedAppointments
-                    .Select(a => a.AppointmentId)
-                    .ToList();
-            }
         }
         catch (Exception ex)
         {
             loadingMessage.IsLoading = false;
-            loadingMessage.Error = "Sorry, I encountered an error processing your request. Please try again.";
+            loadingMessage.Error = "Sorry, I encountered an error. Please try again.";
             Console.Error.WriteLine($"Chat error: {ex.Message}");
         }
         finally
@@ -182,8 +226,13 @@
 
     private async Task HandleAppointmentClick(int appointmentId)
     {
-        // Could navigate to appointment details or open a dialog
         _currentMessage = $"Tell me more about appointment #{appointmentId}";
+        await SendMessage();
+    }
+
+    private async Task HandlePatientClick(string patientName)
+    {
+        _currentMessage = $"Tell me about {patientName}'s appointment history and no-show risk factors";
         await SendMessage();
     }
 
@@ -191,60 +240,220 @@
     {
         try
         {
-            await Task.Delay(50); // Small delay to ensure DOM update
-            // JavaScript interop to scroll would go here
-            // For now, CSS handles auto-scroll with flex-direction: column-reverse workaround
+            await Task.Delay(50);
+            await JS.InvokeVoidAsync("eval", "document.querySelector('.messages-area')?.scrollTo({top: document.querySelector('.messages-area')?.scrollHeight, behavior: 'smooth'})");
         }
-        catch
-        {
-            // Ignore scroll errors
-        }
+        catch { }
     }
 }
 
 <style>
-    .chat-container {
+    .chat-page {
         display: flex;
         flex-direction: column;
-        height: calc(100vh - 120px);
-        max-height: 800px;
-        min-height: 400px;
+        height: 100vh;
+        overflow: hidden;
+        background: var(--mud-palette-background);
+        position: relative;
     }
 
-    .chat-header {
-        border-radius: 4px 4px 0 0;
+    .title-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 16px;
+        background: var(--mud-palette-surface);
+        border-bottom: 1px solid var(--mud-palette-divider);
+        position: relative;
     }
 
-    .messages-container {
+    .title-center {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .title-icon {
+        color: var(--mud-palette-primary);
+    }
+
+    .title-text {
+        font-weight: 600;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .messages-area {
         flex: 1;
         overflow-y: auto;
-        padding: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
+        padding: 0;
     }
 
-    .welcome-message {
+    .welcome-container {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         height: 100%;
+        padding: 24px;
         text-align: center;
-        padding: 2rem;
     }
 
-    .suggestion-chips {
+    .welcome-title {
+        font-weight: 600;
+        margin-bottom: 32px;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .suggestions-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        max-width: 600px;
+        width: 100%;
+    }
+
+    .suggestion-card {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        justify-content: center;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid var(--mud-palette-divider);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: background 0.2s ease;
+        text-align: left;
+        background: var(--mud-palette-surface);
+    }
+
+    .suggestion-card:hover {
+        background: var(--mud-palette-action-default-hover);
+    }
+
+    .suggestion-icon {
+        color: var(--mud-palette-text-secondary);
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+
+    .suggestion-card span {
+        color: var(--mud-palette-text-primary);
+        font-size: 0.875rem;
+        line-height: 1.4;
+    }
+
+    .messages-list {
+        max-width: 768px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .message-row {
+        display: flex;
+        gap: 16px;
+        padding: 24px 0;
+    }
+
+    .message-row.user {
+        background: transparent;
+    }
+
+    .message-row.assistant {
+        background: var(--mud-palette-surface);
+        border-radius: 12px;
+        margin: 8px 0;
+        padding: 24px;
+    }
+
+    .message-avatar {
+        flex-shrink: 0;
+    }
+
+    .message-content {
+        flex: 1;
+        min-width: 0;
+        overflow-wrap: break-word;
+    }
+
+    .typing-indicator {
+        display: flex;
+        gap: 4px;
+        padding: 8px 0;
+    }
+
+    .typing-indicator span {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--mud-palette-text-secondary);
+        animation: typing 1.4s infinite ease-in-out;
+    }
+
+    .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @@keyframes typing {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+        30% { transform: translateY(-4px); opacity: 1; }
+    }
+
+    .input-area {
+        padding: 16px 24px 24px;
+        background: var(--mud-palette-background);
     }
 
     .input-container {
         display: flex;
-        gap: 0.5rem;
+        gap: 8px;
+        max-width: 768px;
+        margin: 0 auto;
+        background: var(--mud-palette-surface);
+        border: 1px solid var(--mud-palette-divider);
+        border-radius: 12px;
+        padding: 8px 8px 8px 16px;
         align-items: center;
-        background-color: var(--mud-palette-surface);
+    }
+
+    .chat-input {
+        flex: 1;
+    }
+
+    .chat-input .mud-input-outlined-border {
+        border: none !important;
+    }
+
+    .chat-input .mud-input {
+        margin: 0 !important;
+    }
+
+    .send-btn {
+        flex-shrink: 0;
+    }
+
+    .input-disclaimer {
+        text-align: center;
+        color: var(--mud-palette-text-secondary);
+        margin-top: 12px;
+        font-size: 0.75rem;
+        width: 100%;
+        display: block;
+    }
+
+    @@media (max-width: 600px) {
+        .suggestions-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .messages-list {
+            padding: 16px;
+        }
+
+        .message-row.assistant {
+            margin: 8px 0;
+            padding: 16px;
+        }
     }
 </style>

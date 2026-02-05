@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "applicationUrl": "http://localhost:5100",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "AZURE_OPENAI_ENDPOINT": "https://aif-noshow-dev-ncus-001.cognitiveservices.azure.com",
+        "AZURE_OPENAI_DEPLOYMENT_NAME": "gpt-4o",
+        "SQL_CONNECTION_STRING": "Server=sql-noshow-dev-ncus-001.database.windows.net;Database=sqldb-noshow;Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;"
+      }
+    }
+  }
+}

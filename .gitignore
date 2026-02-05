@@ -94,6 +94,9 @@ htmlcov/
 ## MLflow
 mlruns/
 mlartifacts/
+model_artifacts*/
+ml/model-download/
+ml/model-exploration/artifacts/
 
 # -----------------------------------------------------------------------------
 # Terraform
@@ -157,3 +160,6 @@ Desktop.ini
 *.bak
 *.backup
 node_modules/
+
+# Temporary/debug scripts
+check-sql-users.ps1

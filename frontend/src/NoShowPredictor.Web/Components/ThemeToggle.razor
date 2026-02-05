@@ -1,0 +1,46 @@
+@using MudBlazor
+
+<MudTooltip Text="@(_isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode")">
+    <MudToggleIconButton Toggled="@_isDarkMode"
+                          ToggledChanged="@OnToggled"
+                          Icon="@Icons.Material.Filled.LightMode"
+                          ToggledIcon="@Icons.Material.Filled.DarkMode"
+                          Color="Color.Inherit"
+                          Size="Size.Medium"
+                          Class="theme-toggle" />
+</MudTooltip>
+
+@code {
+    [Parameter]
+    public bool IsDarkMode { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> IsDarkModeChanged { get; set; }
+
+    private bool _isDarkMode;
+
+    protected override void OnParametersSet()
+    {
+        _isDarkMode = IsDarkMode;
+    }
+
+    private async Task OnToggled(bool isDark)
+    {
+        _isDarkMode = isDark;
+        await IsDarkModeChanged.InvokeAsync(isDark);
+    }
+}
+
+<style>
+    .theme-toggle {
+        transition: transform 0.3s ease-in-out;
+    }
+
+    .theme-toggle:hover {
+        transform: rotate(15deg);
+    }
+
+    .theme-toggle .mud-icon-root {
+        transition: color 0.3s ease-in-out;
+    }
+</style>

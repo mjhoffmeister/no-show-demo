@@ -56,9 +56,9 @@ output "foundry_endpoint" {
   value       = module.foundry.endpoint
 }
 
-output "agent_managed_identity_id" {
-  description = "Agent managed identity resource ID"
-  value       = module.foundry.agent_managed_identity_id
+output "foundry_project_identity_principal_id" {
+  description = "Project identity principal ID (used by hosted agents)"
+  value       = module.foundry.project_identity_principal_id
 }
 
 # -----------------------------------------------------------------------------
@@ -134,4 +134,18 @@ output "application_insights_instrumentation_key" {
   description = "Application Insights instrumentation key"
   value       = azapi_resource.app_insights.output.properties.InstrumentationKey
   sensitive   = true
+}
+
+# -----------------------------------------------------------------------------
+# Entra ID App Registration (SPA)
+# -----------------------------------------------------------------------------
+
+output "aad_app_client_id" {
+  description = "Entra ID app registration (SPA) client ID"
+  value       = azuread_application.spa.client_id
+}
+
+output "aad_tenant_id" {
+  description = "Azure tenant ID"
+  value       = data.azuread_client_config.current.tenant_id
 }

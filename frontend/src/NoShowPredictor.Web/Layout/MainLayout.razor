@@ -1,68 +1,85 @@
 ﻿@inherits LayoutComponentBase
+@using NoShowPredictor.Web.Components
+@inject IJSRuntime JS
 
-<MudThemeProvider Theme="_theme" IsDarkMode="@_isDarkMode" />
+<MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout>
-    <MudAppBar Elevation="1" Color="Color.Primary">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
-        <MudText Typo="Typo.h6" Class="ml-3">No-Show Predictor</MudText>
-        <MudSpacer />
-        <MudTooltip Text="Toggle Dark Mode">
-            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" 
-                           Color="Color.Inherit" 
-                           OnClick="@ToggleDarkMode" />
-        </MudTooltip>
-    </MudAppBar>
-    
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="1" Variant="@DrawerVariant.Mini" OpenMiniOnHover="true">
-        <MudNavMenu>
-            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-            <MudNavLink Href="/appointments" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.CalendarMonth">Appointments</MudNavLink>
-            <MudNavLink Href="/chat" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Chat">AI Chat</MudNavLink>
-            <MudNavLink Href="/analytics" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Analytics">Analytics</MudNavLink>
-        </MudNavMenu>
-    </MudDrawer>
-    
-    <MudMainContent Class="pt-16 px-4">
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-            @Body
-        </MudContainer>
-    </MudMainContent>
-</MudLayout>
+<CascadingValue Value="this">
+    <MudLayout Class="chat-layout">
+        @Body
+    </MudLayout>
+</CascadingValue>
 
 @code {
-    private bool _drawerOpen = true;
     private bool _isDarkMode = false;
+    private bool _initialized = false;
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            // Detect system dark mode preference
+            _isDarkMode = await JS.InvokeAsync<bool>("eval", "window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches");
+            StateHasChanged();
+        }
+    }
+    
+    public void ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+        StateHasChanged();
+    }
+    
+    public bool IsDarkMode => _isDarkMode;
     
     private readonly MudTheme _theme = new()
     {
         PaletteLight = new PaletteLight
         {
-            Primary = "#1976D2",
-            Secondary = "#00897B",
-            AppbarBackground = "#1976D2",
-            Background = "#F5F5F5",
-            Surface = "#FFFFFF",
-            Error = "#D32F2F",
-            Warning = "#FFA000",
-            Success = "#388E3C"
+            Primary = "#10a37f",
+            Secondary = "#6e6e80",
+            AppbarBackground = "#ffffff",
+            Background = "#ffffff",
+            Surface = "#f7f7f8",
+            DrawerBackground = "#f7f7f8",
+            Error = "#ef4444",
+            Warning = "#f59e0b",
+            Success = "#10b981",
+            TextPrimary = "#0d0d0d",
+            TextSecondary = "#6e6e80",
+            ActionDefault = "#6e6e80",
+            Divider = "#e5e5e5"
         },
         PaletteDark = new PaletteDark
         {
-            Primary = "#90CAF9",
-            Secondary = "#80CBC4",
-            AppbarBackground = "#1E1E1E",
-            Background = "#121212",
-            Surface = "#1E1E1E",
-            Error = "#EF5350",
-            Warning = "#FFB74D",
-            Success = "#81C784"
+            Primary = "#10a37f",
+            Secondary = "#8e8ea0",
+            AppbarBackground = "#1a1a1a",
+            Background = "#212121",
+            Surface = "#2d2d2d",
+            DrawerBackground = "#1a1a1a",
+            Error = "#ef4444",
+            Warning = "#f59e0b",
+            Success = "#10b981",
+            TextPrimary = "#ececf1",
+            TextSecondary = "#8e8ea0",
+            ActionDefault = "#8e8ea0",
+            Divider = "#3d3d3d"
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "12px"
         }
     };
-    
-    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
-    private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
 }
+
+<style>
+    .chat-layout {
+        height: 100vh;
+        overflow: hidden;
+    }
+</style>

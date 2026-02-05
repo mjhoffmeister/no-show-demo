@@ -1,7 +1,12 @@
-﻿@page "/"
+@page "/"
+@attribute [Authorize]
+@inject NavigationManager Nav
 
-<PageTitle>Home</PageTitle>
+<PageTitle>No-Show Predictor</PageTitle>
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+@code {
+    protected override void OnInitialized()
+    {
+        Nav.NavigateTo("/chat", replace: true);
+    }
+}

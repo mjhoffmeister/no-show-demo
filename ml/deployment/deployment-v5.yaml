@@ -1,0 +1,26 @@
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
+name: noshow-model-v5
+endpoint_name: noshow-predictor
+
+model: azureml:noshow-predictor:1
+
+# MLflow no-code deployment - uses model's conda.yaml automatically
+# No scoring script needed
+
+instance_type: Standard_DS2_v2
+instance_count: 1
+
+liveness_probe:
+  initial_delay: 600
+  period: 30
+  timeout: 30
+  failure_threshold: 10
+
+readiness_probe:
+  initial_delay: 600
+  period: 30
+  timeout: 30
+  failure_threshold: 10
+
+request_settings:
+  request_timeout_ms: 90000

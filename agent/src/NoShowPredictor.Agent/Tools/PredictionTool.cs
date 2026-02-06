@@ -61,7 +61,13 @@ public class PredictionTool
                         Value = f.FactorValue,
                         Impact = f.Direction,
                         Importance = f.Contribution
-                    }).ToList()
+                    }).ToList(),
+                    // Operational context for recommendation rules
+                    ProviderSpecialty = appt.Provider?.ProviderSpecialty ?? string.Empty,
+                    VirtualFlag = appt.VirtualFlag,
+                    NewPatientFlag = appt.NewPatientFlag,
+                    AppointmentDuration = appt.AppointmentDuration,
+                    LeadTimeDays = appt.LeadTimeDays
                 })
                 .OrderByDescending(p => p.PredictedNoShow)
                 .ToList();
@@ -125,7 +131,13 @@ public class PredictionTool
                     > 0.3m => "Medium",
                     _ => "Low"
                 },
-                RiskFactors = riskFactors
+                RiskFactors = riskFactors,
+                // Operational context for recommendation rules
+                ProviderSpecialty = appt.Provider?.ProviderSpecialty ?? string.Empty,
+                VirtualFlag = appt.VirtualFlag,
+                NewPatientFlag = appt.NewPatientFlag,
+                AppointmentDuration = appt.AppointmentDuration,
+                LeadTimeDays = appt.LeadTimeDays
             };
         })
         .OrderByDescending(p => p.PredictedNoShow)
@@ -331,6 +343,18 @@ public record AppointmentPrediction
     public List<RiskFactorDisplay> RiskFactors { get; init; } = [];
     public string FormattedTime => AppointmentDateTime.ToString("h:mm tt");
     public string FormattedDate => AppointmentDateTime.ToString("MMM d");
+
+    // Operational context fields for recommendation rules
+    /// <summary>Provider's specialty (e.g., "Family Medicine", "Orthopedics")</summary>
+    public string ProviderSpecialty { get; init; } = string.Empty;
+    /// <summary>"Virtual-Video", "Virtual-Telephone", or "Non-Virtual"</summary>
+    public string VirtualFlag { get; init; } = "Non-Virtual";
+    /// <summary>"NEW PATIENT" or "EST PATIENT"</summary>
+    public string NewPatientFlag { get; init; } = "EST PATIENT";
+    /// <summary>Duration in minutes (15, 30, 45, 60)</summary>
+    public int AppointmentDuration { get; init; }
+    /// <summary>Days between scheduling and appointment</summary>
+    public int LeadTimeDays { get; init; }
 }
 
 /// <summary>

@@ -115,6 +115,13 @@ hooks:
         run: |
             Write-Host "Building Blazor WebAssembly frontend..."
 
+            # Clean previous publish output to prevent stale/cached files from being deployed
+            $publishDir = "frontend/src/NoShowPredictor.Web/bin/Release/net10.0/publish"
+            if (Test-Path $publishDir) {
+                Write-Host "Cleaning previous publish output: $publishDir"
+                Remove-Item -Recurse -Force $publishDir
+            }
+
             dotnet publish frontend/src/NoShowPredictor.Web -c Release
 
             # Inject agent endpoint into appsettings.json in the publish output (dist)

@@ -126,7 +126,7 @@ public class NoShowRiskTool
             HighRiskAppointments = isSummaryMode ? [] : highRisk.Take(20).ToList(),
             // Generate structured card JSON for multi-day forecasts
             ForecastCardJson = isSummaryMode 
-                ? GenerateForecastCardJson(parseResult, dailySummaries!, highRisk.Count, lowRisk.Count, appointmentList.Count, source, isMLBased, warning)
+                ? GenerateForecastCardJson(parseResult, dailySummaries!, highRisk.Count, lowRisk.Count, appointmentList.Count, source, isMLBased, warning, sorted)
                 : null,
             Source = source,
             IsMLBased = isMLBased,
@@ -275,7 +275,8 @@ public class NoShowRiskTool
         int totalAppointments,
         string source,
         bool isMLBased,
-        string? warning)
+        string? warning,
+        List<AppointmentWithRisk> allPredictions)
     {
         // Find peak day
         var peakDay = dailySummaries.OrderByDescending(d => d.HighRiskCount).FirstOrDefault();
@@ -300,7 +301,7 @@ public class NoShowRiskTool
         }).ToList();
 
         // Build recommendations
-        var recommendations = GenerateForecastRecommendations(dailySummaries, totalHighRisk, peakDay);
+        var recommendations = GenerateForecastRecommendations(dailySummaries, totalHighRisk, peakDay, allPredictions);
 
         // Format date range nicely
         var startDate = DateOnly.Parse(dailySummaries.First().Date);
@@ -346,18 +347,70 @@ public class NoShowRiskTool
         });
     }
 
+    // =========================================================================
+    // Specialty overbooking caps — max % of schedule that can be overbooked.
+    // Mirrors RecommendationService caps for consistent messaging.
+    // =========================================================================
+    private static readonly Dictionary<string, double> SpecialtyOverbookCaps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Family Medicine"] = 0.15, ["Internal Medicine"] = 0.15, ["Pediatrics"] = 0.15,
+        ["Psychiatry"] = 0.20,
+        ["Cardiology"] = 0.10, ["Dermatology"] = 0.10, ["Endocrinology"] = 0.10,
+        ["Gastroenterology"] = 0.10, ["Neurology"] = 0.10, ["Pulmonology"] = 0.10,
+        ["Rheumatology"] = 0.10,
+        ["Orthopedics"] = 0.0, ["Urology"] = 0.05, ["OB/GYN"] = 0.05, ["Ophthalmology"] = 0.05,
+    };
+
     /// <summary>
-    /// Generates prioritized recommendations based on forecast data.
+    /// Generates prioritized recommendations based on forecast data and operational rules.
+    /// 
+    /// Rules surfaced:
+    /// 1. New-patient / long-visit escalation — high-value slots that need urgent calls
+    /// 2. Virtual visit de-escalation — telehealth needs link reminders, not phone calls
+    /// 3. Specialty-aware overbooking — caps by specialty (surgery=0%, primary care=15%)
+    /// 4. Lead-time-based routing — proactive outreach vs. SMS-only
     /// </summary>
     private static List<ForecastRecommendation> GenerateForecastRecommendations(
         List<DailySummary> dailySummaries,
         int totalHighRisk,
-        DailySummary? peakDay)
+        DailySummary? peakDay,
+        List<AppointmentWithRisk> allPredictions)
     {
         var recommendations = new List<ForecastRecommendation>();
+        var highRiskAppts = allPredictions.Where(p => p.RiskLevel == "High").ToList();
 
-        // Priority calls recommendation
-        if (totalHighRisk > 0)
+        // -----------------------------------------------------------------
+        // 1. New-patient / long-visit urgent calls
+        // -----------------------------------------------------------------
+        var highRiskNewPatient = highRiskAppts.Count(a => a.NewPatientFlag == "NEW PATIENT");
+        var highRiskLongVisit = highRiskAppts.Count(a => a.AppointmentDuration >= 45 && a.NewPatientFlag != "NEW PATIENT");
+        var urgentSlots = highRiskNewPatient + highRiskLongVisit;
+
+        if (urgentSlots > 0)
+        {
+            var parts = new List<string>();
+            if (highRiskNewPatient > 0) parts.Add($"{highRiskNewPatient} new-patient");
+            if (highRiskLongVisit > 0) parts.Add($"{highRiskLongVisit} long-visit (45+ min)");
+
+            recommendations.Add(new ForecastRecommendation
+            {
+                Priority = "high",
+                Icon = "call",
+                Action = "Urgent Confirmation Calls",
+                Target = $"{urgentSlots} hard-to-backfill slots",
+                Detail = $"{string.Join(" + ", parts)} — immediate phone confirmation"
+            });
+        }
+
+        // -----------------------------------------------------------------
+        // 2. Remaining high-risk in-person calls
+        // -----------------------------------------------------------------
+        var inPersonHighRisk = highRiskAppts.Count(a =>
+            a.VirtualFlag == "Non-Virtual" &&
+            a.NewPatientFlag != "NEW PATIENT" &&
+            a.AppointmentDuration < 45);
+
+        if (inPersonHighRisk > 0)
         {
             var emphasis = peakDay != null && peakDay.HighRiskCount > 0
                 ? $"especially {peakDay.DayOfWeek} with {peakDay.HighRiskCount} high-risk"
@@ -368,40 +421,123 @@ public class NoShowRiskTool
                 Priority = "high",
                 Icon = "call",
                 Action = "Priority Confirmation Calls",
-                Target = $"{totalHighRisk} high-risk patients",
+                Target = $"{inPersonHighRisk} in-person high-risk patients",
                 Detail = emphasis
             });
         }
 
-        // Overbooking recommendation for peak day
+        // -----------------------------------------------------------------
+        // 3. Virtual visit de-escalation
+        // -----------------------------------------------------------------
+        var virtualHighRisk = highRiskAppts.Count(a => a.VirtualFlag is "Virtual-Video" or "Virtual-Telephone");
+        if (virtualHighRisk > 0)
+        {
+            recommendations.Add(new ForecastRecommendation
+            {
+                Priority = "low",
+                Icon = "reminder",
+                Action = "Telehealth Link Reminders",
+                Target = $"{virtualHighRisk} virtual high-risk visits",
+                Detail = "No room impact — send video/phone link at 24hr and 1hr"
+            });
+        }
+
+        // -----------------------------------------------------------------
+        // 4. Specialty-aware overbooking
+        // -----------------------------------------------------------------
         if (peakDay != null && peakDay.HighRiskCount >= 5)
         {
-            var slotsToOverbook = peakDay.HighRiskCount switch
+            var peakDate = DateOnly.Parse(peakDay.Date);
+            var peakAppts = allPredictions
+                .Where(p => p.AppointmentDate == peakDate && p.RiskLevel == "High")
+                .ToList();
+
+            // Group by specialty and compute capped overbook slots
+            var bySpecialty = peakAppts
+                .GroupBy(a => string.IsNullOrEmpty(a.ProviderSpecialty) ? "General" : a.ProviderSpecialty)
+                .Select(g =>
+                {
+                    var cap = SpecialtyOverbookCaps.GetValueOrDefault(g.Key, 0.10);
+                    var total = allPredictions.Count(p => p.AppointmentDate == peakDate && p.ProviderSpecialty == g.Key);
+                    var maxSlots = (int)Math.Floor(total * cap);
+                    var expectedNoShows = g.Count();
+                    return new { Specialty = g.Key, Slots = Math.Min(expectedNoShows, maxSlots), Cap = cap };
+                })
+                .Where(x => x.Cap > 0)
+                .OrderByDescending(x => x.Slots)
+                .ToList();
+
+            var totalSlots = bySpecialty.Sum(x => x.Slots);
+            var blocked = peakAppts
+                .Select(a => string.IsNullOrEmpty(a.ProviderSpecialty) ? "General" : a.ProviderSpecialty)
+                .Distinct()
+                .Where(s => SpecialtyOverbookCaps.GetValueOrDefault(s, 0.10) <= 0)
+                .ToList();
+
+            var detail = totalSlots > 0
+                ? $"~{totalSlots} slots across {bySpecialty.Count} specialties (capped by policy)"
+                : "Overbooking limited by specialty caps";
+
+            if (blocked.Count > 0)
             {
-                >= 20 => "3-4",
-                >= 10 => "2-3",
-                _ => "1-2"
-            };
+                detail += $" | {string.Join(", ", blocked)}: no overbooking (procedural)";
+            }
 
             recommendations.Add(new ForecastRecommendation
             {
                 Priority = "medium",
                 Icon = "overbook",
-                Action = "Overbooking Consideration",
-                Target = $"{peakDay.DayOfWeek} ({DateOnly.Parse(peakDay.Date):MMM d})",
-                Detail = $"~{slotsToOverbook} slots recommended"
+                Action = "Specialty-Aware Overbooking",
+                Target = $"{peakDay.DayOfWeek} ({peakDate:MMM d})",
+                Detail = detail
             });
         }
 
-        // Enhanced reminders for medium-risk
-        recommendations.Add(new ForecastRecommendation
+        // -----------------------------------------------------------------
+        // 5. Lead-time-based routing
+        // -----------------------------------------------------------------
+        var longLeadHighRisk = highRiskAppts.Count(a => a.LeadTimeDays > 14);
+        var shortLeadHighRisk = highRiskAppts.Count(a => a.LeadTimeDays < 3);
+
+        if (longLeadHighRisk > 0)
         {
-            Priority = "low",
-            Icon = "reminder",
-            Action = "Enhanced Reminder Campaigns",
-            Target = "Medium-risk patients",
-            Detail = $"SMS/email reminders across all {dailySummaries.Count} days"
-        });
+            recommendations.Add(new ForecastRecommendation
+            {
+                Priority = "medium",
+                Icon = "call",
+                Action = "Proactive Outreach Calls",
+                Target = $"{longLeadHighRisk} patients booked 14+ days ago",
+                Detail = "Long lead time — call 7 days before visit to re-confirm"
+            });
+        }
+
+        if (shortLeadHighRisk > 0)
+        {
+            recommendations.Add(new ForecastRecommendation
+            {
+                Priority = "medium",
+                Icon = "reminder",
+                Action = "Same-Day SMS Confirmations",
+                Target = $"{shortLeadHighRisk} recently-booked high-risk patients",
+                Detail = "Short lead time — SMS only, not enough time for phone outreach"
+            });
+        }
+
+        // -----------------------------------------------------------------
+        // 6. Standard reminders for remaining
+        // -----------------------------------------------------------------
+        var lowRiskTotal = allPredictions.Count(p => p.RiskLevel == "Low");
+        if (lowRiskTotal > 0)
+        {
+            recommendations.Add(new ForecastRecommendation
+            {
+                Priority = "low",
+                Icon = "reminder",
+                Action = "Standard Reminder Campaigns",
+                Target = $"{lowRiskTotal} low-risk patients",
+                Detail = $"SMS/email reminders across all {dailySummaries.Count} days"
+            });
+        }
 
         return recommendations;
     }
@@ -423,7 +559,13 @@ public class NoShowRiskTool
                 .OrderByDescending(f => f.Contribution)
                 .Take(3)
                 .Select(f => $"{FormatFactorName(f.FactorName)}: {f.FactorValue}")
-                .ToList()
+                .ToList(),
+            // Operational context
+            ProviderSpecialty = appt.Provider?.ProviderSpecialty ?? string.Empty,
+            VirtualFlag = appt.VirtualFlag,
+            NewPatientFlag = appt.NewPatientFlag,
+            AppointmentDuration = appt.AppointmentDuration,
+            LeadTimeDays = appt.LeadTimeDays
         };
     }
 
@@ -443,7 +585,13 @@ public class NoShowRiskTool
             AppointmentType = appt.AppointmentTypeName,
             PredictedNoShow = probability > 0.5m,
             RiskLevel = probability > 0.5m ? "High" : "Low",
-            TopRiskFactors = factors
+            TopRiskFactors = factors,
+            // Operational context
+            ProviderSpecialty = appt.Provider?.ProviderSpecialty ?? string.Empty,
+            VirtualFlag = appt.VirtualFlag,
+            NewPatientFlag = appt.NewPatientFlag,
+            AppointmentDuration = appt.AppointmentDuration,
+            LeadTimeDays = appt.LeadTimeDays
         };
     }
 
@@ -626,6 +774,18 @@ public record AppointmentWithRisk
     internal bool PredictedNoShow { get; init; }
     public string RiskLevel { get; init; } = string.Empty;
     public List<string> TopRiskFactors { get; init; } = [];
+
+    // Operational context for forecast recommendations
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal string ProviderSpecialty { get; init; } = string.Empty;
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal string VirtualFlag { get; init; } = "Non-Virtual";
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal string NewPatientFlag { get; init; } = "EST PATIENT";
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal int AppointmentDuration { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal int LeadTimeDays { get; init; }
 }
 
 /// <summary>

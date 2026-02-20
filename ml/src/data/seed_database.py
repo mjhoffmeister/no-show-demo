@@ -314,7 +314,9 @@ def insert_dataframe(
     df: pd.DataFrame,
     table_name: str,
     batch_size: int = 100,
-) -> int:
+    server: str = "",
+    database: str = "",
+) -> tuple[int, pyodbc.Connection]:
     """Insert DataFrame records into a SQL table using fast_executemany.
 
     Args:
@@ -322,9 +324,12 @@ def insert_dataframe(
         df: DataFrame to insert
         table_name: Target table name
         batch_size: Number of records per batch
+        server: SQL Server hostname (for reconnection)
+        database: Database name (for reconnection)
 
     Returns:
-        Number of records inserted
+        Tuple of (number of records inserted, connection) — connection may be
+        refreshed if the original was dropped by the server.
     """
     cursor = connection.cursor()
     cursor.fast_executemany = True  # Critical for performance!
@@ -343,39 +348,64 @@ def insert_dataframe(
 
     total = len(rows)
     inserted = 0
+    max_retries = 3
 
     for i in range(0, total, batch_size):
         batch = rows[i : i + batch_size]
-        try:
-            cursor.executemany(insert_sql, batch)
-            connection.commit()
-            inserted += len(batch)
-            if inserted % 1000 == 0 or inserted == total:
-                logger.info(f"    Progress: {inserted:,}/{total:,} ({100 * inserted // total}%)")
-        except pyodbc.Error as e:
-            logger.error(f"Error inserting batch at offset {i}: {e}")
-            logger.error(f"Columns: {cols}")
-            connection.rollback()
-            raise
+        for attempt in range(max_retries):
+            try:
+                cursor.executemany(insert_sql, batch)
+                connection.commit()
+                inserted += len(batch)
+                if inserted % 1000 == 0 or inserted == total:
+                    logger.info(f"    Progress: {inserted:,}/{total:,} ({100 * inserted // total}%)")
+                break
+            except pyodbc.Error as e:
+                error_code = getattr(e, 'args', [('',)])[0] if e.args else ''
+                is_connection_error = any(
+                    code in str(error_code) for code in ['08S01', '08001', '01000']
+                )
+                if is_connection_error and attempt < max_retries - 1 and server:
+                    logger.warning(f"    Connection lost at offset {i}, reconnecting (attempt {attempt + 2}/{max_retries})...")
+                    import time
+                    time.sleep(5 * (attempt + 1))
+                    try:
+                        connection = create_connection(server, database)
+                        cursor = connection.cursor()
+                        cursor.fast_executemany = True
+                        continue
+                    except Exception as reconnect_err:
+                        logger.error(f"    Reconnection failed: {reconnect_err}")
+                logger.error(f"Error inserting batch at offset {i}: {e}")
+                logger.error(f"Columns: {cols}")
+                try:
+                    connection.rollback()
+                except Exception:
+                    pass
+                raise
 
     cursor.close()
-    return inserted
+    return inserted, connection
 
 
 def seed_database(
     connection: pyodbc.Connection,
     dataframes: dict[str, pd.DataFrame],
     truncate: bool = True,
-) -> dict[str, int]:
+    server: str = "",
+    database: str = "",
+) -> tuple[dict[str, int], pyodbc.Connection]:
     """Seed the database with all entity data.
 
     Args:
         connection: Database connection
         dataframes: Dictionary of entity DataFrames (keyed by parquet name)
         truncate: Whether to truncate tables before loading
+        server: SQL Server hostname (for reconnection)
+        database: Database name (for reconnection)
 
     Returns:
-        Dictionary mapping table names to record counts inserted
+        Tuple of (dict mapping table names to record counts, connection)
     """
     if truncate:
         truncate_tables(connection)
@@ -391,15 +421,17 @@ def seed_database(
             logger.info(f"  Read {len(dataframes[parquet_name]):,} records from parquet")
             logger.info(f"  Starting insert into {table_name}...")
 
-            count = insert_dataframe(
+            count, connection = insert_dataframe(
                 connection=connection,
                 df=dataframes[parquet_name],
                 table_name=table_name,
+                server=server,
+                database=database,
             )
             results[table_name] = count
             logger.info(f"  Inserted {count:,} records into {table_name}")
 
-    return results
+    return results, connection
 
 
 # =============================================================================
@@ -482,7 +514,10 @@ def seed_from_parquet(
     logger.info("Connected successfully!")
 
     try:
-        results = seed_database(connection, dataframes, truncate=truncate)
+        results, connection = seed_database(
+            connection, dataframes, truncate=truncate,
+            server=server, database=database,
+        )
 
         if validate:
             validate_data(connection)

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-no-show-predictor`  
 **Created**: 2026-01-28  
-**Status**: Draft  
+**Status**: Draft
 **Input**: User description: "Build a demonstration that includes a machine learning model and chat agent to show how an ML model output combined with Gen AI can surface likely no-show medical appointments and suggest actions."
 
 ## Technology Decisions

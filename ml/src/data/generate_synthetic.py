@@ -541,9 +541,9 @@ def generate_appointments(
     """
     appointments: list[Appointment] = []
 
-    # Calculate date range (24 months history + 2 weeks future)
+    # Calculate date range (24 months history + 6 weeks future)
     if end_date is None:
-        end_date = date.today() + timedelta(days=14)
+        end_date = date.today() + timedelta(weeks=6)
     if start_date is None:
         start_date = end_date - timedelta(days=730)  # 24 months
 

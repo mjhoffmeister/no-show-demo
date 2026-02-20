@@ -1,0 +1,34 @@
+flowchart TB
+    subgraph DataPipeline["Data Pipeline"]
+        SynGen["Synthetic Data Generator"]
+        Parquet["Parquet Files"]
+        SynGen --> Parquet
+    end
+
+    subgraph AzureML["Azure Machine Learning"]
+        MLTable["MLTable"]
+        AutoML["AutoML Training"]
+        Model["Ensemble Model"]
+        Endpoint["Managed Online Endpoint"]
+        Parquet --> MLTable --> AutoML --> Model --> Endpoint
+    end
+
+    subgraph AzureSQL["Azure SQL Database"]
+        Tables[("Patients, Appointments, Providers")]
+        Parquet --> Tables
+    end
+
+    subgraph Foundry["Azure AI Foundry"]
+        GPT["GPT-4o"]
+        Agent["Hosted Agent"]
+        GPT --> Agent
+    end
+
+    subgraph SWA["Azure Static Web Apps"]
+        Blazor["Blazor WASM Chat UI"]
+    end
+
+    User((User)) --> Blazor
+    Blazor -->|Azure.AI.Projects SDK| Agent
+    Agent --> Tables
+    Agent --> Endpoint
